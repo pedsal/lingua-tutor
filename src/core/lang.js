@@ -12,17 +12,32 @@ export const LANGS = {
 };
 export const LANG_CODES = ['ja', 'en', 'it'];
 
-// Livelli (scala CEFR; per il giapponese il tutor cita l'equivalente JLPT).
-export const LEVELS = [
-  { id: 'A1', it: 'Principiante (A1)',       en: 'Beginner (A1)',          ja: '入門 (A1)' },
-  { id: 'A2', it: 'Elementare (A2)',         en: 'Elementary (A2)',        ja: '初級 (A2)' },
-  { id: 'B1', it: 'Intermedio (B1)',         en: 'Intermediate (B1)',      ja: '中級 (B1)' },
-  { id: 'B2', it: 'Intermedio-alto (B2)',    en: 'Upper-intermediate (B2)',ja: '中上級 (B2)' },
-  { id: 'C1', it: 'Avanzato (C1)',           en: 'Advanced (C1)',          ja: '上級 (C1)' },
-];
-export function levelLabel(id) {
-  const u = uiLang(); const l = LEVELS.find((x) => x.id === id);
-  return l ? l[u] : id;
+// Livelli — scala per lingua-obiettivo: JLPT per il giapponese, CEFR per
+// inglese/italiano. Entrambe hanno un livello "Introduzione" (alfabeto e basi)
+// prima del principiante.
+export const LEVEL_SETS = {
+  ja: [
+    { id: 'intro', it: 'Introduzione — kana e basi', en: 'Introduction — kana & basics', ja: '入門 — かな・基礎' },
+    { id: 'N5', it: 'N5 — Principiante',        en: 'N5 — Beginner',            ja: 'N5 — 初級' },
+    { id: 'N4', it: 'N4 — Base',                en: 'N4 — Elementary',          ja: 'N4 — 初中級' },
+    { id: 'N3', it: 'N3 — Intermedio',          en: 'N3 — Intermediate',        ja: 'N3 — 中級' },
+    { id: 'N2', it: 'N2 — Intermedio-alto',     en: 'N2 — Upper-intermediate',  ja: 'N2 — 中上級' },
+    { id: 'N1', it: 'N1 — Avanzato',            en: 'N1 — Advanced',            ja: 'N1 — 上級' },
+  ],
+  cefr: [
+    { id: 'intro', it: 'Introduzione — alfabeto e basi', en: 'Introduction — alphabet & basics', ja: '入門 — アルファベット・基礎' },
+    { id: 'A1', it: 'A1 — Principiante',        en: 'A1 — Beginner',            ja: 'A1 — 入門' },
+    { id: 'A2', it: 'A2 — Elementare',          en: 'A2 — Elementary',          ja: 'A2 — 初級' },
+    { id: 'B1', it: 'B1 — Intermedio',          en: 'B1 — Intermediate',        ja: 'B1 — 中級' },
+    { id: 'B2', it: 'B2 — Intermedio-alto',     en: 'B2 — Upper-intermediate',  ja: 'B2 — 中上級' },
+    { id: 'C1', it: 'C1 — Avanzato',            en: 'C1 — Advanced',            ja: 'C1 — 上級' },
+  ],
+};
+export function levelsFor(target) { return target === 'ja' ? LEVEL_SETS.ja : LEVEL_SETS.cefr; }
+export function defaultLevel(target) { return target === 'ja' ? 'N5' : 'A2'; }
+export function levelLabel(id, target) {
+  const l = levelsFor(target).find((x) => x.id === id);
+  return l ? l[uiLang()] : id;
 }
 export function langName(code, ui = uiLang()) { const l = LANGS[code]; return l ? (l.name[ui] || l.native) : code; }
 

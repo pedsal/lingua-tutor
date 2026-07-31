@@ -10,14 +10,19 @@ import { getDiary, pushDiary, getConvo } from './store.js';
 // Nome della lingua in INGLESE (per il modello) e nome nativo (per l'output).
 function meta(profile) {
   const target = LANGS[profile.target], expl = LANGS[profile.expl];
+  const level = profile.level;
+  const levelText = level === 'intro'
+    ? (profile.target === 'ja'
+        ? 'absolute beginner just starting the language (learning hiragana and katakana and the very first words)'
+        : 'absolute beginner just starting the language (learning the alphabet, pronunciation and the very first words)')
+    : (profile.target === 'ja' ? `JLPT ${level}` : `CEFR ${level}`);
   return {
     targetEn: target.name.en, targetNative: target.native, targetLatin: target.latin,
     explEn: expl.name.en, explNative: expl.native,
-    level: profile.level, name: profile.name, persona: profile.persona || 'friendly',
+    level, levelText, name: profile.name, persona: profile.persona || 'friendly',
   };
 }
 
-const JLPT = { A1: 'JLPT N5', A2: 'JLPT N5–N4', B1: 'JLPT N4–N3', B2: 'JLPT N3–N2', C1: 'JLPT N2–N1' };
 
 // Personalità del tutor (una leva di personalizzazione, come nell'app di riferimento).
 export const PERSONAS = ['friendly', 'strict', 'cultural', 'business'];
@@ -36,21 +41,23 @@ const PERSONA_PROMPT = {
 
 function base(profile) {
   const m = meta(profile);
-  const jlpt = profile.target === 'ja' ? ` (roughly ${JLPT[m.level] || 'JLPT N5'})` : '';
   const scriptNote = profile.target === 'ja'
     ? `\n- When you write ${m.targetEn}, add the reading in rōmaji in parentheses the first time a word appears, e.g. 学校 (gakkō), and keep sentences short at low levels.`
     : '';
+  const introNote = m.level === 'intro'
+    ? `\n- The student is at the very START: first teach the writing system and pronunciation (${profile.target === 'ja' ? 'hiragana, then katakana' : 'the alphabet and its sounds'}), use only very short words and set phrases, ALWAYS give a transliteration/rōmaji and the meaning, and advance in tiny steps with lots of encouragement.`
+    : '';
   return `You are an expert, warm and patient private language tutor.
-The student's name is ${m.name}. They are learning ${m.targetEn} at level ${m.level}${jlpt}.
+The student's name is ${m.name}. They are learning ${m.targetEn} at level: ${m.levelText}.
 Explanation language: ${m.explNative}. ALWAYS write your explanations, encouragement and instructions in ${m.explNative}.
 Write example sentences and target-language practice in ${m.targetEn}.
 
 Tutor style: ${PERSONA_PROMPT[m.persona] || PERSONA_PROMPT.friendly}
 
 Core rules:
-- Adapt vocabulary and grammar strictly to level ${m.level}. Do not overwhelm the student.
+- Adapt vocabulary and grammar strictly to the student's level (${m.levelText}). Do not overwhelm the student.
 - Be encouraging but get to the point; no empty filler.
-- Never invent facts about the language; if unsure, say so.${scriptNote}`;
+- Never invent facts about the language; if unsure, say so.${scriptNote}${introNote}`;
 }
 
 // Istruzione condivisa per l'output STRUTTURATO delle modalità conversazionali.
@@ -75,7 +82,7 @@ export function systemFor(profile, mode, extra = '') {
     return `${b}
 
 Mode: FREE CONVERSATION.
-- Have a natural conversation with the student. Lead with questions in ${m.targetEn} suited to level ${m.level}, and keep the topic light and relatable.
+- Have a natural conversation with the student. Lead with questions in ${m.targetEn} suited to level ${m.levelText}, and keep the topic light and relatable.
 - In "reply", speak mostly in ${m.targetEn}; keep sentences at the student's level.
 - Put any error correction in the "corrections" field (not inside "reply"). React to the content and ask ONE follow-up question.${structuredNote(profile)}
 ${extra}`;
@@ -84,7 +91,7 @@ ${extra}`;
     return `${b}
 
 Mode: GUIDED LESSON. You are teaching a focused mini-lesson.
-- Teach ONE clear point (a grammar structure, ~5 words, or a useful expression) chosen for level ${m.level}.
+- Teach ONE clear point (a grammar structure, ~5 words, or a useful expression) chosen for level ${m.levelText}.
 - In "reply", structure the turn: short explanation, 2–3 examples with meaning, then a small exercise for the student to try; keep each turn short so it feels like a real lesson.
 - Put corrections of the student's attempts in the "corrections" field.${structuredNote(profile)}
 ${extra}`;
@@ -93,7 +100,7 @@ ${extra}`;
     return `${b}
 
 Mode: READING PRACTICE.
-- When asked for a new text, put in "reply" a SHORT reading passage in ${m.targetEn} (4–7 sentences) for level ${m.level} on an everyday topic, followed by a short vocabulary list (word — meaning) and 2 comprehension questions.
+- When asked for a new text, put in "reply" a SHORT reading passage in ${m.targetEn} (4–7 sentences) for level ${m.levelText} on an everyday topic, followed by a short vocabulary list (word — meaning) and 2 comprehension questions.
 - When the student answers, put corrections in the "corrections" field and react in "reply".${structuredNote(profile)}
 ${extra}`;
   }
@@ -121,7 +128,7 @@ export function chatSchema(profile) {
 // ── Writing Lab: analisi di un testo scritto ──
 export function writingSystem(profile, goal) {
   const m = meta(profile);
-  return `You are a native-level writing reviewer and professor of ${m.targetEn}, correcting for an ${m.explNative}-speaking student at level ${m.level}.${m.persona ? ` Style: ${PERSONA_PROMPT[m.persona]}` : ''}
+  return `You are a native-level writing reviewer and professor of ${m.targetEn}, correcting for an ${m.explNative}-speaking student at level ${m.levelText}.${m.persona ? ` Style: ${PERSONA_PROMPT[m.persona]}` : ''}
 Writing goal: ${goal || 'general'}.
 Analyse the student's text and return STRUCTURED JSON:
 - "score": integer 0-100 for overall quality at their level.
@@ -167,13 +174,13 @@ export const speechSchema = {
 // Genera una frase-bersaglio per l'esercizio di pronuncia (testo semplice, non JSON).
 export function speechPhraseSeed(profile) {
   const m = meta(profile);
-  return `Give ONE short, natural sentence in ${m.targetEn} suitable for a level ${m.level} student to read aloud for pronunciation practice. Output ONLY the sentence, nothing else${profile.target === 'ja' ? ' (include the sentence in Japanese script only)' : ''}.`;
+  return `Give ONE short, natural sentence in ${m.targetEn} suitable for a level ${m.levelText} student to read aloud for pronunciation practice. Output ONLY the sentence, nothing else${profile.target === 'ja' ? ' (include the sentence in Japanese script only)' : ''}.`;
 }
 
 // Primo messaggio "seme" per far partire la modalità (istruzione nascosta al modello).
 export function seedFor(profile, mode) {
   const m = meta(profile);
-  if (mode === 'chat') return `Greet ${m.name} warmly in ${m.explNative}, then start a simple conversation in ${m.targetEn} with one easy opening question for level ${m.level}.`;
+  if (mode === 'chat') return `Greet ${m.name} warmly in ${m.explNative}, then start a simple conversation in ${m.targetEn} with one easy opening question for level ${m.levelText}.`;
   if (mode === 'reading') return `Give me a brand-new reading passage now, following the reading-practice format.`;
   return null;
 }
@@ -212,5 +219,5 @@ export function memoryContext(profile) {
 // Seme della lezione del giorno: sceglie un argomento nuovo tenendo conto del diario.
 export function lessonSeed(profile) {
   const m = meta(profile);
-  return `Start today's lesson now for ${m.name} (level ${m.level}, learning ${m.targetEn}). Pick ONE fresh, useful point that fits their level and has not been covered in the recent lessons above. Begin the guided lesson.`;
+  return `Start today's lesson now for ${m.name} (level ${m.levelText}, learning ${m.targetEn}). Pick ONE fresh, useful point that fits their level and has not been covered in the recent lessons above. Begin the guided lesson.`;
 }

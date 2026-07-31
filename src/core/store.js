@@ -35,6 +35,12 @@ function defaults(m) {
   if (c.ttsNeuralVoice === undefined) c.ttsNeuralVoice = 'Kore';
   if (c.uiLang === undefined) c.uiLang = 'it';             // lingua dell'interfaccia
   if (!Array.isArray(m.profiles)) m.profiles = [];
+  // Migrazione: i profili giapponesi con vecchi livelli CEFR passano a JLPT.
+  const CEFR2JLPT = { A1: 'N5', A2: 'N5', B1: 'N4', B2: 'N3', C1: 'N2' };
+  m.profiles.forEach((p) => {
+    if (!p.persona) p.persona = 'friendly';
+    if (p.target === 'ja' && CEFR2JLPT[p.level]) p.level = CEFR2JLPT[p.level];
+  });
   if (m.activeId === undefined) m.activeId = null;
   if (!m.convos) m.convos = {};                            // `${profileId}:${mode}` -> [{role,text,ts}]
   if (!m.diaries) m.diaries = {};                          // profileId -> [{ts,date,mode,topic,errors,summary}]

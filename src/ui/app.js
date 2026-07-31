@@ -5,7 +5,7 @@
 import { S, save, activeProfile, addProfile, updateProfile, removeProfile,
   getConvo, pushMsg, resetConvo, getDiary, clearDiary, diarizedLen, setDiarizedLen,
   getLab, setLab, exportState, importState } from '../core/store.js';
-import { LANGS, LANG_CODES, LEVELS, levelLabel, langName, uiLang, t } from '../core/lang.js';
+import { LANGS, LANG_CODES, levelsFor, defaultLevel, levelLabel, langName, uiLang, t } from '../core/lang.js';
 import { configured, MODELS } from '../core/gemini.js';
 import { ask, askJSON } from '../core/gemini.js';
 import { systemFor, seedFor, lessonSeed, memoryContext, maybeDiarize, chatSchema,
@@ -149,7 +149,7 @@ const CHAT_MODES = ['chat', 'lesson', 'reading'];
 function renderMain() {
   const p = activeProfile();
   const tabs = TABS.map((tb) => `<button class="tab ${view.mode === tb.mode ? 'on' : ''}" data-act="tab" data-mode="${tb.mode}"><span class="ti">${icon(tb.ic, { size: 22 })}</span><span class="tl">${tb.label()}</span></button>`).join('');
-  const chip = `${langBadge(p.target)}<span class="pn">${esc(p.name)}</span><span class="pm">${langName(p.target)} · ${levelLabel(p.level)}</span>${S().profiles.length > 1 ? icon('swap', { size: 15, cls: 'sw' }) : ''}`;
+  const chip = `${langBadge(p.target)}<span class="pn">${esc(p.name)}</span><span class="pm">${langName(p.target)} · ${levelLabel(p.level, p.target)}</span>${S().profiles.length > 1 ? icon('swap', { size: 15, cls: 'sw' }) : ''}`;
   app().innerHTML =
     `<div class="topbar main">
        <span class="logo">${icon('logo', { size: 22 })}</span>
@@ -214,11 +214,11 @@ function renderOnboarding() {
   // Default sensati e sempre validi (target ≠ spiegazione), in base alla lingua UI:
   // UI giapponese → studia italiano, spiega in giapponese (es. la moglie);
   // altrimenti → studia giapponese, spiega nella lingua UI (es. l'utente).
-  if (!draft) { const dexpl = uiLang(); draft = p ? { persona: 'friendly', ...p } : { name: '', target: dexpl === 'ja' ? 'it' : 'ja', expl: dexpl, level: 'A2', persona: 'friendly' }; }
+  if (!draft) { const dexpl = uiLang(); const dtarget = dexpl === 'ja' ? 'it' : 'ja'; draft = p ? { persona: 'friendly', ...p } : { name: '', target: dtarget, expl: dexpl, level: defaultLevel(dtarget), persona: 'friendly' }; }
   const langBtns = (field) => `<div class="langgrid">${LANG_CODES.map((c) =>
     `<button data-act="draft-${field}" data-v="${c}" class="${draft[field] === c ? 'on' : ''}"><span class="fl">${c.toUpperCase()}</span>${esc(langName(c))}</button>`).join('')}</div>`;
   const personaSeg = `<div class="seg wrap">${PERSONAS.map((pk) => `<button data-act="draft-persona" data-v="${pk}" class="${(draft.persona || 'friendly') === pk ? 'on' : ''}">${PERSONA_LABEL[pk][uiLang()]}</button>`).join('')}</div>`;
-  const levelOpts = LEVELS.map((l) => `<option value="${l.id}" ${draft.level === l.id ? 'selected' : ''}>${esc(l[uiLang()] || l.id)}</option>`).join('');
+  const levelOpts = levelsFor(draft.target).map((l) => `<option value="${l.id}" ${draft.level === l.id ? 'selected' : ''}>${esc(l[uiLang()] || l.id)}</option>`).join('');
   const canSave = draft.name.trim() && draft.target && draft.expl && draft.target !== draft.expl;
   app().innerHTML =
     topbar(editing ? t('editProfile') : t('appName'), editing ? '' : t('welcome'), { back: S().profiles.length > 0, lang: !editing }) +
@@ -462,7 +462,7 @@ function renderSettings() {
       <button class="iconbtn" data-act="voice-test" data-code="${code}" aria-label="test">${icon('volume', { size: 18 })}</button></div></div>`;
   };
   const profiles = S().profiles.map((pr) => `<div class="pr ${pr.id === S().activeId ? 'on' : ''}">
-      <div class="meta"><strong>${esc(pr.name)}</strong><br><small>${langBadge(pr.target)} ${langName(pr.target)} → ${langName(pr.expl)} · ${levelLabel(pr.level)}</small></div>
+      <div class="meta"><strong>${esc(pr.name)}</strong><br><small>${langBadge(pr.target)} ${langName(pr.target)} → ${langName(pr.expl)} · ${levelLabel(pr.level, pr.target)}</small></div>
       ${pr.id === S().activeId ? '' : `<button class="iconbtn" data-act="pick-profile" data-id="${pr.id}" aria-label="select">${icon('check', { size: 18 })}</button>`}
       <button class="iconbtn" data-act="edit-profile" data-id="${pr.id}" aria-label="edit">${icon('edit', { size: 17 })}</button>
     </div>`).join('');
@@ -544,7 +544,7 @@ function onClick(e) {
     case 'new-text': paintMsgs(true); return callModel('reading', 'Please give me a brand-new reading passage now, on a different everyday topic than before.');
     case 'new-lesson': return newLesson();
     // onboarding
-    case 'draft-target': draft.target = v; return renderOnboarding();
+    case 'draft-target': draft.target = v; if (!levelsFor(v).some((l) => l.id === draft.level)) draft.level = defaultLevel(v); return renderOnboarding();
     case 'draft-expl': draft.expl = v; return renderOnboarding();
     case 'draft-persona': draft.persona = v; return renderOnboarding();
     case 'save-profile': return saveProfile();
