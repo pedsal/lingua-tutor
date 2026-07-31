@@ -47,7 +47,9 @@ export async function speakNeural(text) {
   const body = clean(text);
   if (!body) return null;
   const voice = S().cfg.ttsNeuralVoice || 'Kore';
-  const model = 'gemini-2.5-flash-preview-tts';
+  // Il modello 2.5-flash-preview-tts ha un tetto gratuito minuscolo (429 rapido):
+  // usiamo il 3.1, che ha quota disponibile e stesse voci prebuilt.
+  const model = 'gemini-3.1-flash-tts-preview';
   const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key);
   const req = { contents: [{ parts: [{ text: body }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } } };
   const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 30000);
