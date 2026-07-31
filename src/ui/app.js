@@ -54,6 +54,11 @@ const SL = {
   neuralOn: { it: 'Voce neurale IA [beta]', en: 'AI neural voice [beta]', ja: 'AIニューラル音声［ベータ］' },
   neuralHelp: { it: 'Più naturale e uguale su ogni dispositivo. Consuma la quota Gemini.', en: 'More natural and identical on every device. Uses Gemini quota.', ja: 'より自然で、全端末で同じ音声。Geminiの無料枠を消費します。' },
   neuralVoice: { it: 'Voce neurale', en: 'Neural voice', ja: 'ニューラル音声' },
+  voiceHelpSummary: { it: 'Come avere una voce più naturale e istantanea', en: 'How to get a more natural, instant voice', ja: 'より自然で瞬時の音声を使うには' },
+  voiceHelpAndroid: { it: 'Android: Impostazioni → Gestione generale → Sintesi vocale → motore Google → installa i dati vocali della lingua.', en: 'Android: Settings → General management → Text-to-speech → Google engine → install the language’s voice data.', ja: 'Android: 設定 → 一般管理 → テキスト読み上げ → Googleエンジン → 言語の音声データをインストール。' },
+  voiceHelpIos: { it: 'iPhone/iPad: Impostazioni → Accessibilità → Contenuti pronunciati → Voci → scarica una voce “Premium” o “Migliorata”.', en: 'iPhone/iPad: Settings → Accessibility → Spoken Content → Voices → download a “Premium” or “Enhanced” voice.', ja: 'iPhone/iPad: 設定 → アクセシビリティ → 読み上げコンテンツ → 声 → 「プレミアム」または「高品質」の声をダウンロード。' },
+  voiceHelpDesktop: { it: 'PC (Edge/Windows): usa le voci Microsoft “…Natural”.', en: 'PC (Edge/Windows): use the Microsoft “…Natural” voices.', ja: 'PC（Edge/Windows）: Microsoftの「…Natural」音声を使用。' },
+  voiceHelpNote: { it: 'Se presente, l’app userà automaticamente la voce naturale locale (istantanea, senza consumare quota).', en: 'If available, the app automatically uses the local natural voice (instant, no quota used).', ja: '端末に自然な音声があれば、アプリが自動で使います（瞬時・quota消費なし）。' },
   memory: { it: 'Memoria del tutor', en: 'Tutor memory', ja: '先生の記憶' },
   memoryHelp: { it: 'Il tutor ricorda le vostre conversazioni per personalizzare e correggere gli errori ricorrenti.', en: 'The tutor remembers your sessions to personalise lessons and fix recurring mistakes.', ja: '先生は会話を記憶し、レッスンを個別化して繰り返す間違いを直します。' },
   clearMemoryConfirm: { it: 'Cancellare tutta la memoria di questo profilo?', en: 'Clear all memory for this profile?', ja: 'このプロフィールの記憶をすべて消しますか？' },
@@ -577,6 +582,10 @@ function renderSettings() {
         ${c.ttsNeural ? `<div class="field" style="margin-top:12px"><label>${sl('neuralVoice')}</label>
           <div class="row"><select id="s-neuralvoice" style="flex:1">${GEMINI_TTS_VOICES.map((v) => `<option value="${v}" ${c.ttsNeuralVoice === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
           <button class="iconbtn" data-act="neural-test" aria-label="test">${icon('volume', { size: 18 })}</button></div></div>` : ''}
+        <details class="help"><summary>${sl('voiceHelpSummary')}</summary>
+          <ul><li>${sl('voiceHelpAndroid')}</li><li>${sl('voiceHelpIos')}</li><li>${sl('voiceHelpDesktop')}</li></ul>
+          <div class="hint">${sl('voiceHelpNote')}</div>
+        </details>
       </div>
 
       <div class="setblock"><h3>${icon('globe', { size: 17 })} ${t('uiLangLabel')}</h3>

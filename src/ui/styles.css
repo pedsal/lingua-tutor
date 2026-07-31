@@ -182,6 +182,13 @@ h1, h3 { letter-spacing: -.01em; }
 .setblock { margin-bottom: 26px; }
 .setblock h3 { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 0 0 12px; color: var(--text); }
 .setblock h3 .ic { color: var(--accent-ink); }
+.help { margin-top: 14px; background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 4px 14px; }
+.help summary { cursor: pointer; padding: 10px 0; font-size: 13.5px; font-weight: 600; color: var(--accent-ink); list-style: none; }
+.help summary::-webkit-details-marker { display: none; }
+.help summary::before { content: '＋'; margin-right: 8px; color: var(--muted); font-weight: 700; }
+.help[open] summary::before { content: '－'; }
+.help ul { margin: 4px 0 6px; padding-left: 18px; display: grid; gap: 8px; font-size: 13.5px; line-height: 1.5; }
+.help .hint { padding-bottom: 10px; }
 .profilelist { display: grid; gap: 8px; }
 .profilelist .pr { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
 .profilelist .pr.on { border-color: var(--accent); }
