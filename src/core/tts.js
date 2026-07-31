@@ -20,6 +20,13 @@ const PREFER = {
   ja: [/nanami/i, /google\s*(日本語|japanese)/i, /keita/i, /kyoko/i, /otoya/i, /ayumi/i, /haruka/i, /ichiro/i],
   en: [/aria/i, /jenny/i, /guy/i, /google\s*us\s*english/i, /samantha/i, /daniel/i, /libby/i, /ryan/i],
   it: [/alice/i, /federica/i, /luca/i, /google.*ital/i, /elsa/i, /isabella/i, /cosimo/i],
+  es: [/elvira/i, /alvaro/i, /google.*espa/i, /monica/i, /helena/i, /laura/i],
+  fr: [/denise/i, /henri/i, /google.*fran/i, /amelie/i, /thomas/i, /audrey/i],
+  de: [/katja/i, /conrad/i, /google.*deutsch/i, /anna/i, /markus/i],
+  pt: [/francisca/i, /antonio/i, /google.*portug/i, /luciana/i, /joana/i],
+  zh: [/xiaoxiao/i, /yunyang/i, /google.*(中文|mandarin|chinese)/i, /tingting/i, /huihui/i],
+  ko: [/sunhi/i, /injoon/i, /google.*korean/i, /heami/i, /yuna/i],
+  ru: [/svetlana/i, /dmitry/i, /google.*russ/i, /milena/i, /pavel/i],
 };
 export function bestVoice(code) {
   const list = voicesForLang(code);
@@ -51,29 +58,6 @@ function cleanForTTS(raw) {
     .trim();
 }
 
-// Determina la lingua "latina" da usare per il profilo: se studi una lingua
-// latina (en/it) usa quella per i tratti latini (così gli esempi suonano bene),
-// altrimenti (studi giapponese) usa la lingua di spiegazione.
-function latinLangFor(profile) {
-  if (!profile) return 'it';
-  return LANGS[profile.target].latin ? profile.target : profile.expl;
-}
-
-function segmentMixed(raw, latinCode) {
-  const t = cleanForTTS(raw);
-  const out = [];
-  let cur = '', curJa = null;
-  for (const ch of t) {
-    const isJa = _JA_CH.test(ch) || /[、。！？]/.test(ch);
-    if (/\s/.test(ch)) { cur += ch; continue; }
-    if (curJa === null) { curJa = isJa; cur += ch; }
-    else if (isJa === curJa) { cur += ch; }
-    else { if (cur.trim()) out.push({ code: curJa ? 'ja' : latinCode, text: cur.trim() }); cur = ch; curJa = isJa; }
-  }
-  if (cur.trim()) out.push({ code: curJa ? 'ja' : latinCode, text: cur.trim() });
-  return out.filter((s) => (s.code === 'ja' ? _JA_WORD.test(s.text) : /[a-zA-Zàèéìòùáéíóúñ]/.test(s.text)));
-}
-
 let _chain = 0, _utter = null, _audio = null;
 export function ttsStop() {
   _chain++;
@@ -81,36 +65,33 @@ export function ttsStop() {
   if (_audio) { try { _audio.pause(); } catch (e) {} _audio = null; }
 }
 
-// Legge un messaggio del tutor con le voci appropriate. force = riproduzione
-// manuale (bottone "Ascolta"): suona anche se l'auto-lettura è spenta.
+// Legge la risposta del tutor con la voce della LINGUA-OBIETTIVO. La risposta è
+// scritta interamente nella lingua studiata (le spiegazioni stanno in campi a
+// parte), quindi una sola voce va bene per qualsiasi lingua, anche non latina.
+// force = riproduzione manuale ("Ascolta"): suona anche se l'auto-lettura è spenta.
 export function speakMsg(text, profile, force) {
   if ((!force && S().cfg.tts === false) || !ttsAvailable()) return;
   ttsStop();
-  const latin = latinLangFor(profile);
-  const segs = segmentMixed(text, latin);
-  if (!segs.length) return;
-  const token = ++_chain;
+  const clean = cleanForTTS(text);
+  if (!clean.trim()) return;
+  const code = (profile && profile.target && LANGS[profile.target]) ? profile.target : 'en';
+  const u = new SpeechSynthesisUtterance(clean);
+  u.lang = LANGS[code].bcp;
+  const v = bestVoice(code); if (v) u.voice = v;
   const rate = _clampRate(+S().cfg.ttsRate || 1.0);
-  const ss = window.speechSynthesis;
-  let i = 0;
-  const next = () => {
-    if (token !== _chain || i >= segs.length) return;
-    const s = segs[i++];
-    const u = new SpeechSynthesisUtterance(s.text);
-    u.lang = LANGS[s.code] ? LANGS[s.code].bcp : 'en-US';
-    const v = bestVoice(s.code); if (v) u.voice = v;
-    u.rate = s.code === 'ja' ? Math.min(rate, 1.1) : rate; u.pitch = 1;
-    u.onend = next; u.onerror = next;
-    _utter = u;
-    try { ss.speak(u); } catch (e) { next(); }
-  };
-  try { ss.resume(); } catch (e) {}
-  next();
+  u.rate = code === 'ja' ? Math.min(rate, 1.1) : rate;
+  u.pitch = 1;
+  _utter = u;
+  try { const ss = window.speechSynthesis; ss.resume(); ss.speak(u); } catch (e) {}
 }
 
 // Prova voce: legge una frase campione nella lingua indicata.
 export function speakSample(code) {
-  const samples = { ja: 'こんにちは、今日はいい天気ですね。', en: 'Hello, this is a voice test.', it: 'Ciao, questa è una prova di voce.' };
+  const samples = {
+    ja: 'こんにちは、今日はいい天気ですね。', en: 'Hello, this is a voice test.', it: 'Ciao, questa è una prova di voce.',
+    es: 'Hola, esta es una prueba de voz.', fr: 'Bonjour, ceci est un test de voix.', de: 'Hallo, dies ist ein Sprachtest.',
+    pt: 'Olá, este é um teste de voz.', zh: '你好，这是一个语音测试。', ko: '안녕하세요, 음성 테스트입니다.', ru: 'Привет, это проверка голоса.',
+  };
   const text = samples[code] || 'Test';
   if (!ttsAvailable()) return;
   ttsStop();

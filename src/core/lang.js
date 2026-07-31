@@ -6,11 +6,18 @@ import { S } from './store.js';
 // name.<uiLang> = come si chiama la lingua nell'interfaccia; native = nome nativo;
 // bcp = codice per TTS e riconoscimento vocale; latin = usa alfabeto latino.
 export const LANGS = {
-  ja: { code: 'ja', bcp: 'ja-JP', latin: false, flag: '🇯🇵', native: '日本語',   name: { it: 'Giapponese', en: 'Japanese', ja: '日本語' } },
-  en: { code: 'en', bcp: 'en-US', latin: true,  flag: '🇬🇧', native: 'English',  name: { it: 'Inglese',    en: 'English',  ja: '英語' } },
-  it: { code: 'it', bcp: 'it-IT', latin: true,  flag: '🇮🇹', native: 'Italiano', name: { it: 'Italiano',   en: 'Italian',  ja: 'イタリア語' } },
+  ja: { code: 'ja', bcp: 'ja-JP', latin: false, native: '日本語',   name: { it: 'Giapponese', en: 'Japanese',   ja: '日本語' } },
+  en: { code: 'en', bcp: 'en-US', latin: true,  native: 'English',  name: { it: 'Inglese',    en: 'English',    ja: '英語' } },
+  it: { code: 'it', bcp: 'it-IT', latin: true,  native: 'Italiano', name: { it: 'Italiano',   en: 'Italian',    ja: 'イタリア語' } },
+  es: { code: 'es', bcp: 'es-ES', latin: true,  native: 'Español',  name: { it: 'Spagnolo',   en: 'Spanish',    ja: 'スペイン語' } },
+  fr: { code: 'fr', bcp: 'fr-FR', latin: true,  native: 'Français', name: { it: 'Francese',   en: 'French',     ja: 'フランス語' } },
+  de: { code: 'de', bcp: 'de-DE', latin: true,  native: 'Deutsch',  name: { it: 'Tedesco',    en: 'German',     ja: 'ドイツ語' } },
+  pt: { code: 'pt', bcp: 'pt-BR', latin: true,  native: 'Português',name: { it: 'Portoghese', en: 'Portuguese', ja: 'ポルトガル語' } },
+  zh: { code: 'zh', bcp: 'zh-CN', latin: false, native: '中文',     name: { it: 'Cinese',     en: 'Chinese',    ja: '中国語' } },
+  ko: { code: 'ko', bcp: 'ko-KR', latin: false, native: '한국어',   name: { it: 'Coreano',    en: 'Korean',     ja: '韓国語' } },
+  ru: { code: 'ru', bcp: 'ru-RU', latin: false, native: 'Русский',  name: { it: 'Russo',      en: 'Russian',    ja: 'ロシア語' } },
 };
-export const LANG_CODES = ['ja', 'en', 'it'];
+export const LANG_CODES = ['ja', 'en', 'it', 'es', 'fr', 'de', 'pt', 'zh', 'ko', 'ru'];
 
 // Livelli — scala per lingua-obiettivo: JLPT per il giapponese, CEFR per
 // inglese/italiano. Entrambe hanno un livello "Introduzione" (alfabeto e basi)

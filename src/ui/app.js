@@ -570,7 +570,7 @@ function renderSettings() {
         <div class="toggle" data-act="tog-auto"><span>${t('autoSpeak')}</span><span class="sw ${c.autoSpeak ? 'on' : ''}"></span></div>
         <div style="height:12px"></div>
         <div class="field"><label>${t('rate')} — ${(+c.ttsRate || 1).toFixed(2)}×</label><input type="range" id="s-rate" min="0.6" max="1.3" step="0.05" value="${+c.ttsRate || 1}"></div>
-        ${LANG_CODES.map(voiceSelect).join('')}
+        ${(() => { const used = [...new Set(S().profiles.flatMap((p) => [p.target, p.expl]))].filter(Boolean); return (used.length ? used : ['ja', 'it']).map(voiceSelect).join(''); })()}
         <div style="height:12px"></div>
         <div class="toggle" data-act="tog-neural"><span>${sl('neuralOn')}</span><span class="sw ${c.ttsNeural ? 'on' : ''}"></span></div>
         <div class="hint" style="margin:6px 2px 0">${sl('neuralHelp')}</div>
