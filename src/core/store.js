@@ -25,6 +25,7 @@ function defaults(m) {
   const c = m.cfg;
   if (c.geminiKey === undefined) c.geminiKey = '';         // chiave BYOK, resta su questo dispositivo
   if (c.geminiModel === undefined) c.geminiModel = 'auto';
+  if (/gemini-2/.test(c.geminiModel || '')) c.geminiModel = 'auto';   // rimuovi i vecchi modelli 2.x
   if (c.tutorLen === undefined) c.tutorLen = 'media';
   if (c.tutorDailyMax === undefined) c.tutorDailyMax = 80;  // tetto domande/giorno (0 = illimitato)
   if (c.tts === undefined) c.tts = true;                   // pronuncia attiva

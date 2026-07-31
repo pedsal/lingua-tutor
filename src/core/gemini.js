@@ -6,13 +6,14 @@
 // ============================================================
 import { S, usage, bumpUsage } from './store.js';
 
+// Solo modelli moderni (3.x / latest): niente Gemini 2.5.
 export const MODELS = [
   { id: 'auto', label: 'Automatico (consigliato)' },
   { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite — più domande/giorno' },
   { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash — risposte migliori' },
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash — generazione precedente' },
+  { id: 'gemini-flash-latest', label: 'Gemini Flash (ultimo) — sempre aggiornato' },
 ];
-const AUTO_CHAIN = ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-2.5-flash'];
+const AUTO_CHAIN = ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.5-flash'];
 
 export const LEN = {
   breve: { tokens: 1500, hint: 'Keep the reply very concise (max ~80 words).' },
@@ -26,7 +27,6 @@ export function configured() { return !!apiKey(); }
 function genConfig(model, tokens) {
   const base = { temperature: 0.6, maxOutputTokens: tokens, topP: 0.95 };
   if (/^gemini-[3-9]/.test(model) || /latest$/.test(model)) return { ...base, thinkingConfig: { thinkingLevel: 'minimal' } };
-  if (/^gemini-2\.5/.test(model)) return { ...base, thinkingConfig: { thinkingBudget: 0 } };
   return base;
 }
 

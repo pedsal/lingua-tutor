@@ -34,8 +34,7 @@ function wrapWav(bytes, rate) {
   return new Blob([buf], { type: 'audio/wav' });
 }
 
-// Il modello 2.5-flash-preview-tts ha un tetto gratuito minuscolo (429 rapido):
-// usiamo il 3.1, che ha quota disponibile e stesse voci prebuilt.
+// TTS solo su modello moderno 3.x (niente 2.5, che ha quota gratuita minuscola).
 const MODEL = 'gemini-3.1-flash-tts-preview';
 
 let _player = null;
