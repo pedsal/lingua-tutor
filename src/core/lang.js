@@ -16,8 +16,9 @@ export const LANGS = {
   zh: { code: 'zh', bcp: 'zh-CN', latin: false, native: '中文',     name: { it: 'Cinese',     en: 'Chinese',    ja: '中国語' } },
   ko: { code: 'ko', bcp: 'ko-KR', latin: false, native: '한국어',   name: { it: 'Coreano',    en: 'Korean',     ja: '韓国語' } },
   ru: { code: 'ru', bcp: 'ru-RU', latin: false, native: 'Русский',  name: { it: 'Russo',      en: 'Russian',    ja: 'ロシア語' } },
+  ro: { code: 'ro', bcp: 'ro-RO', latin: true,  native: 'Română',   name: { it: 'Rumeno',     en: 'Romanian',   ja: 'ルーマニア語' } },
 };
-export const LANG_CODES = ['ja', 'en', 'it', 'es', 'fr', 'de', 'pt', 'zh', 'ko', 'ru'];
+export const LANG_CODES = ['ja', 'en', 'it', 'es', 'fr', 'de', 'pt', 'zh', 'ko', 'ru', 'ro'];
 
 // Livelli — scala per lingua-obiettivo: JLPT per il giapponese, CEFR per
 // inglese/italiano. Entrambe hanno un livello "Introduzione" (alfabeto e basi)

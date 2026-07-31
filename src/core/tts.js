@@ -27,6 +27,7 @@ const PREFER = {
   zh: [/xiaoxiao/i, /yunyang/i, /google.*(中文|mandarin|chinese)/i, /tingting/i, /huihui/i],
   ko: [/sunhi/i, /injoon/i, /google.*korean/i, /heami/i, /yuna/i],
   ru: [/svetlana/i, /dmitry/i, /google.*russ/i, /milena/i, /pavel/i],
+  ro: [/alina/i, /emil/i, /google.*roman/i, /andrei/i, /ioana/i],
 };
 export function bestVoice(code) {
   const list = voicesForLang(code);
@@ -91,6 +92,7 @@ export function speakSample(code) {
     ja: 'こんにちは、今日はいい天気ですね。', en: 'Hello, this is a voice test.', it: 'Ciao, questa è una prova di voce.',
     es: 'Hola, esta es una prueba de voz.', fr: 'Bonjour, ceci est un test de voix.', de: 'Hallo, dies ist ein Sprachtest.',
     pt: 'Olá, este é um teste de voz.', zh: '你好，这是一个语音测试。', ko: '안녕하세요, 음성 테스트입니다.', ru: 'Привет, это проверка голоса.',
+    ro: 'Salut, acesta este un test de voce.',
   };
   const text = samples[code] || 'Test';
   if (!ttsAvailable()) return;
