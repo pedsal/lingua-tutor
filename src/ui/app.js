@@ -12,7 +12,7 @@ import { systemFor, seedFor, lessonSeed, memoryContext, maybeDiarize, chatSchema
   writingSystem, writingSchema, speechSystem, speechSchema, speechPhraseSeed,
   PERSONAS, PERSONA_LABEL } from '../core/tutor.js';
 import { speakTutor, speakSample, ttsStop, ttsAvailable, micAvailable, startDictation, voicesForLang, bestVoice } from '../core/tts.js';
-import { GEMINI_TTS_VOICES } from '../core/neural.js';
+import { GEMINI_TTS_VOICES, NEURAL_TTS_MODEL } from '../core/neural.js';
 import { icon } from './icons.js';
 
 // Badge lingua (sostituisce le bandiere emoji): sigla in un chip discreto.
@@ -54,6 +54,9 @@ const SL = {
   neuralOn: { it: 'Voce neurale IA [beta]', en: 'AI neural voice [beta]', ja: 'AIニューラル音声［ベータ］' },
   neuralHelp: { it: 'Più naturale e uguale su ogni dispositivo. Consuma la quota Gemini.', en: 'More natural and identical on every device. Uses Gemini quota.', ja: 'より自然で、全端末で同じ音声。Geminiの無料枠を消費します。' },
   neuralVoice: { it: 'Voce neurale', en: 'Neural voice', ja: 'ニューラル音声' },
+  neuralModel: { it: 'Modello', en: 'Model', ja: 'モデル' },
+  fbQuota: { it: 'Voce neurale al limite (troppe richieste ravvicinate): uso la voce del dispositivo.', en: 'Neural voice rate-limited (too many requests): using the device voice.', ja: 'ニューラル音声がレート制限中：端末の音声を使います。' },
+  fbGeneric: { it: 'Voce neurale non disponibile ora: uso la voce del dispositivo.', en: 'Neural voice unavailable now: using the device voice.', ja: 'ニューラル音声が使えません：端末の音声を使います。' },
   voiceHelpSummary: { it: 'Come avere una voce più naturale e istantanea', en: 'How to get a more natural, instant voice', ja: 'より自然で瞬時の音声を使うには' },
   voiceHelpAndroid: { it: 'Android: Impostazioni → Gestione generale → Sintesi vocale → motore Google → installa i dati vocali della lingua.', en: 'Android: Settings → General management → Text-to-speech → Google engine → install the language’s voice data.', ja: 'Android: 設定 → 一般管理 → テキスト読み上げ → Googleエンジン → 言語の音声データをインストール。' },
   voiceHelpIos: { it: 'iPhone/iPad: Impostazioni → Accessibilità → Contenuti pronunciati → Voci → scarica una voce “Premium” o “Migliorata”.', en: 'iPhone/iPad: Settings → Accessibility → Spoken Content → Voices → download a “Premium” or “Enhanced” voice.', ja: 'iPhone/iPad: 設定 → アクセシビリティ → 読み上げコンテンツ → 声 → 「プレミアム」または「高品質」の声をダウンロード。' },
@@ -143,7 +146,19 @@ export function boot() {
   // Installazione PWA: cattura il prompt nativo (Android/Chrome) per offrirlo in-app.
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; if (view.route === 'intro' || view.route === 'settings') render(); });
   window.addEventListener('appinstalled', () => { deferredPrompt = null; });
+  // Voce neurale che ripiega sul dispositivo: avviso visibile invece del silenzio.
+  window.addEventListener('lt-tts-fallback', (e) => toast(sl(e && e.detail && e.detail.quota ? 'fbQuota' : 'fbGeneric')));
   render();
+}
+
+let _toastT = null;
+function toast(msg) {
+  let el = document.getElementById('toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => el.classList.remove('show'), 4200);
 }
 function applyTheme() {
   const th = S().cfg.theme || 'light';
@@ -579,6 +594,7 @@ function renderSettings() {
         <div style="height:12px"></div>
         <div class="toggle" data-act="tog-neural"><span>${sl('neuralOn')}</span><span class="sw ${c.ttsNeural ? 'on' : ''}"></span></div>
         <div class="hint" style="margin:6px 2px 0">${sl('neuralHelp')}</div>
+        <div class="hint" style="margin:6px 2px 0">${sl('neuralModel')}: <code>${NEURAL_TTS_MODEL}</code></div>
         ${c.ttsNeural ? `<div class="field" style="margin-top:12px"><label>${sl('neuralVoice')}</label>
           <div class="row"><select id="s-neuralvoice" style="flex:1">${GEMINI_TTS_VOICES.map((v) => `<option value="${v}" ${c.ttsNeuralVoice === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
           <button class="iconbtn" data-act="neural-test" aria-label="test">${icon('volume', { size: 18 })}</button></div></div>` : ''}

@@ -189,6 +189,16 @@ h1, h3 { letter-spacing: -.01em; }
 .help[open] summary::before { content: '－'; }
 .help ul { margin: 4px 0 6px; padding-left: 18px; display: grid; gap: 8px; font-size: 13.5px; line-height: 1.5; }
 .help .hint { padding-bottom: 10px; }
+.hint code { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: 12px; }
+
+/* ── Toast (avvisi non bloccanti, es. fallback voce) ── */
+.toast {
+  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px);
+  max-width: min(92%, 520px); background: var(--text); color: var(--bg); font-size: 13.5px; line-height: 1.4;
+  padding: 11px 16px; border-radius: 12px; box-shadow: var(--shadow); z-index: 50; opacity: 0; pointer-events: none;
+  transition: opacity .2s, transform .2s; text-align: center;
+}
+.toast.show { opacity: .96; transform: translateX(-50%) translateY(0); }
 .profilelist { display: grid; gap: 8px; }
 .profilelist .pr { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
 .profilelist .pr.on { border-color: var(--accent); }

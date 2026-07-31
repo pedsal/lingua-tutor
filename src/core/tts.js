@@ -116,7 +116,12 @@ export function speakSample(code) {
 // voce del dispositivo su errore), altrimenti la voce del dispositivo.
 export function speakTutor(text, profile, force) {
   if (!force && S().cfg.tts === false) return null;
-  if (neuralAvailable()) return speakNeural(text).catch(() => { speakMsg(text, profile, force); });
+  if (neuralAvailable()) return speakNeural(text).catch((e) => {
+    // Ripiego sulla voce del dispositivo: segnala il motivo alla UI (niente silenzio).
+    const quota = /quota|rate|429/i.test(String(e && e.message || e));
+    try { window.dispatchEvent(new CustomEvent('lt-tts-fallback', { detail: { quota } })); } catch (_) {}
+    speakMsg(text, profile, force);
+  });
   speakMsg(text, profile, force);
   return null;
 }

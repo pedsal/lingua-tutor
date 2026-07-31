@@ -35,7 +35,8 @@ function wrapWav(bytes, rate) {
 }
 
 // TTS solo su modello moderno 3.x (niente 2.5, che ha quota gratuita minuscola).
-const MODEL = 'gemini-3.1-flash-tts-preview';
+export const NEURAL_TTS_MODEL = 'gemini-3.1-flash-tts-preview';
+const MODEL = NEURAL_TTS_MODEL;
 
 let _player = null;
 let _ntoken = 0;   // token: incrementando si annulla la catena in corso
