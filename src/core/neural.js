@@ -42,23 +42,7 @@ let _ntoken = 0;   // token: incrementando si annulla la catena in corso
 export function neuralStop() { _ntoken++; if (_player) { try { _player.pause(); } catch (e) {} _player = null; } }
 export function neuralAvailable() { return !!(S().cfg.ttsNeural && (S().cfg.geminiKey || '').trim()); }
 
-// Divide il testo in pezzi (la prima frase da sola, per partire subito; poi gruppi
-// di frasi fino a ~170 caratteri), così l'audio inizia molto prima su testi lunghi.
-function splitChunks(t) {
-  if (!t) return [];
-  const sents = t.match(/[^.!?。！？\n]+[.!?。！？]*\s*/g) || [t];
-  const chunks = []; let cur = '';
-  for (let i = 0; i < sents.length; i++) {
-    const s = sents[i];
-    if (i === 0) { chunks.push(s.trim()); continue; }
-    if ((cur + s).length > 170) { if (cur.trim()) chunks.push(cur.trim()); cur = s; }
-    else cur += s;
-  }
-  if (cur.trim()) chunks.push(cur.trim());
-  return chunks.filter(Boolean);
-}
-
-// Genera l'audio di UN pezzo (throw su errore, es. 429).
+// Genera l'audio (throw su errore, es. 429).
 async function genAudio(text, voice, key) {
   if (!text) return null;
   const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' + MODEL + ':generateContent?key=' + encodeURIComponent(key);
@@ -88,27 +72,21 @@ function playBlob(blob, token) {
   });
 }
 
-// Riproduce la risposta a PEZZI: genera e suona la prima frase (corta → veloce),
-// mentre prepara in sottofondo la successiva. Throw solo se il PRIMO pezzo fallisce
-// (così il chiamante ripiega sulla voce del dispositivo); errori successivi = stop.
+// Genera l'audio dell'INTERA risposta con una sola chiamata, poi la riproduce
+// tutta di fila (nessuno stacco tra le frasi). Piccola attesa iniziale mentre
+// l'audio si genera. Throw su errore, così il chiamante ripiega sulla voce del
+// dispositivo.
 export async function speakNeural(text) {
   const key = (S().cfg.geminiKey || '').trim();
   if (!key) throw new Error('Manca la chiave Gemini.');
-  const chunks = splitChunks(clean(text));
-  if (!chunks.length) return null;
+  const body = clean(text);
+  if (!body) return null;
   const voice = S().cfg.ttsNeuralVoice || 'Kore';
   neuralStop();
   try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
   const token = ++_ntoken;
-  let nextP = genAudio(chunks[0], voice, key);   // primo pezzo: errore propagato
-  for (let i = 0; i < chunks.length; i++) {
-    let blob;
-    try { blob = await nextP; }
-    catch (e) { if (i === 0) throw e; return; }
-    if (token !== _ntoken) return;
-    if (i + 1 < chunks.length) nextP = genAudio(chunks[i + 1], voice, key).catch(() => null);
-    await playBlob(blob, token);
-    if (token !== _ntoken) return;
-  }
+  const blob = await genAudio(body, voice, key);   // errore propagato → fallback dispositivo
+  if (token !== _ntoken) return;
+  await playBlob(blob, token);
   return true;
 }
