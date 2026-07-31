@@ -7,7 +7,7 @@
 // ============================================================
 import { S, save } from './store.js';
 import { LANGS } from './lang.js';
-import { neuralAvailable, speakNeural } from './neural.js';
+import { neuralAvailable, speakNeural, neuralStop } from './neural.js';
 
 let _voices = [];
 function refresh() { try { _voices = window.speechSynthesis ? speechSynthesis.getVoices() : []; } catch (e) { _voices = []; } }
@@ -29,12 +29,19 @@ const PREFER = {
   ru: [/svetlana/i, /dmitry/i, /google.*russ/i, /milena/i, /pavel/i],
   ro: [/alina/i, /emil/i, /google.*roman/i, /andrei/i, /ioana/i],
 };
+// Voci di qualità "neurale" locali (istantanee): Microsoft "…Natural", voci
+// "Neural/Premium/Enhanced" (Windows/Edge/iOS/Android moderni).
+const NATURAL = /natural|neural|premium|enhanced|siri/i;
 export function bestVoice(code) {
   const list = voicesForLang(code);
   if (!list.length) return null;
   const wanted = (S().cfg.ttsVoices || {})[code];
   if (wanted) { const v = list.find((x) => x.name === wanted); if (v) return v; }
+  // 1) voce locale "Natural/Neural" (qualità alta, nessuna latenza di rete)
+  const natural = list.find((v) => NATURAL.test(v.name)); if (natural) return natural;
+  // 2) voci note di buona qualità per lingua
   for (const re of (PREFER[code] || [])) { const v = list.find((x) => re.test(x.name)); if (v) return v; }
+  // 3) voce online (spesso neurale), 4) prima disponibile
   const online = list.find((v) => v.localService === false); if (online) return online;
   return list[0];
 }
@@ -64,6 +71,7 @@ export function ttsStop() {
   _chain++;
   try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {}
   if (_audio) { try { _audio.pause(); } catch (e) {} _audio = null; }
+  neuralStop();
 }
 
 // Legge la risposta del tutor con la voce della LINGUA-OBIETTIVO. La risposta è

@@ -5,7 +5,6 @@
 //  chiamante ripiega sulla voce del dispositivo (vedi speakTutor in tts.js).
 // ============================================================
 import { S } from './store.js';
-import { ttsStop } from './tts.js';
 
 export const GEMINI_TTS_VOICES = ['Kore', 'Puck', 'Charon', 'Zephyr', 'Aoede', 'Fenrir', 'Leda', 'Orus', 'Sulafat'];
 
@@ -35,23 +34,36 @@ function wrapWav(bytes, rate) {
   return new Blob([buf], { type: 'audio/wav' });
 }
 
+// Il modello 2.5-flash-preview-tts ha un tetto gratuito minuscolo (429 rapido):
+// usiamo il 3.1, che ha quota disponibile e stesse voci prebuilt.
+const MODEL = 'gemini-3.1-flash-tts-preview';
+
 let _player = null;
-export function neuralStop() { if (_player) { try { _player.pause(); } catch (e) {} _player = null; } }
+let _ntoken = 0;   // token: incrementando si annulla la catena in corso
+export function neuralStop() { _ntoken++; if (_player) { try { _player.pause(); } catch (e) {} _player = null; } }
 export function neuralAvailable() { return !!(S().cfg.ttsNeural && (S().cfg.geminiKey || '').trim()); }
 
-// Genera e riproduce l'audio. Rigetta (throw) su errore, così il chiamante può
-// ripiegare sulla voce del dispositivo.
-export async function speakNeural(text) {
-  const key = (S().cfg.geminiKey || '').trim();
-  if (!key) throw new Error('Manca la chiave Gemini.');
-  const body = clean(text);
-  if (!body) return null;
-  const voice = S().cfg.ttsNeuralVoice || 'Kore';
-  // Il modello 2.5-flash-preview-tts ha un tetto gratuito minuscolo (429 rapido):
-  // usiamo il 3.1, che ha quota disponibile e stesse voci prebuilt.
-  const model = 'gemini-3.1-flash-tts-preview';
-  const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key);
-  const req = { contents: [{ parts: [{ text: body }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } } };
+// Divide il testo in pezzi (la prima frase da sola, per partire subito; poi gruppi
+// di frasi fino a ~170 caratteri), così l'audio inizia molto prima su testi lunghi.
+function splitChunks(t) {
+  if (!t) return [];
+  const sents = t.match(/[^.!?。！？\n]+[.!?。！？]*\s*/g) || [t];
+  const chunks = []; let cur = '';
+  for (let i = 0; i < sents.length; i++) {
+    const s = sents[i];
+    if (i === 0) { chunks.push(s.trim()); continue; }
+    if ((cur + s).length > 170) { if (cur.trim()) chunks.push(cur.trim()); cur = s; }
+    else cur += s;
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+  return chunks.filter(Boolean);
+}
+
+// Genera l'audio di UN pezzo (throw su errore, es. 429).
+async function genAudio(text, voice, key) {
+  if (!text) return null;
+  const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' + MODEL + ':generateContent?key=' + encodeURIComponent(key);
+  const req = { contents: [{ parts: [{ text }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } } };
   const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 30000);
   let data;
   try {
@@ -63,11 +75,41 @@ export async function speakNeural(text) {
   const inline = part && part.inlineData;
   if (!inline || !inline.data) throw new Error('Nessun audio ricevuto dal modello TTS.');
   const rate = +((/rate=(\d+)/.exec(inline.mimeType || '') || [])[1]) || 24000;
-  const blob = wrapWav(decodeB64(inline.data), rate);
-  ttsStop();
-  const audio = new Audio(URL.createObjectURL(blob));
-  _player = audio;
-  audio.onended = () => { try { URL.revokeObjectURL(audio.src); } catch (e) {} };
-  await audio.play().catch(() => {});
-  return audio;
+  return wrapWav(decodeB64(inline.data), rate);
+}
+
+function playBlob(blob, token) {
+  return new Promise((resolve) => {
+    if (token !== _ntoken || !blob) { resolve(); return; }
+    const audio = new Audio(URL.createObjectURL(blob));
+    _player = audio;
+    const done = () => { try { URL.revokeObjectURL(audio.src); } catch (e) {} resolve(); };
+    audio.onended = done; audio.onerror = done;
+    audio.play().catch(() => done());
+  });
+}
+
+// Riproduce la risposta a PEZZI: genera e suona la prima frase (corta → veloce),
+// mentre prepara in sottofondo la successiva. Throw solo se il PRIMO pezzo fallisce
+// (così il chiamante ripiega sulla voce del dispositivo); errori successivi = stop.
+export async function speakNeural(text) {
+  const key = (S().cfg.geminiKey || '').trim();
+  if (!key) throw new Error('Manca la chiave Gemini.');
+  const chunks = splitChunks(clean(text));
+  if (!chunks.length) return null;
+  const voice = S().cfg.ttsNeuralVoice || 'Kore';
+  neuralStop();
+  try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
+  const token = ++_ntoken;
+  let nextP = genAudio(chunks[0], voice, key);   // primo pezzo: errore propagato
+  for (let i = 0; i < chunks.length; i++) {
+    let blob;
+    try { blob = await nextP; }
+    catch (e) { if (i === 0) throw e; return; }
+    if (token !== _ntoken) return;
+    if (i + 1 < chunks.length) nextP = genAudio(chunks[i + 1], voice, key).catch(() => null);
+    await playBlob(blob, token);
+    if (token !== _ntoken) return;
+  }
+  return true;
 }
