@@ -21,7 +21,25 @@ function langBadge(code) { return `<span class="lbadge">${LANGS[code] ? code.toU
 const app = () => document.getElementById('app');
 let view = { route: 'main', mode: 'chat', editId: null };
 let busy = false;
-let rec = null;   // riconoscimento vocale attivo
+let rec = null;          // riconoscimento vocale attivo
+let introStep = 0;       // passo del carosello di introduzione
+let deferredPrompt = null;   // evento beforeinstallprompt (Android/Chrome)
+
+function isStandalone() {
+  try { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; } catch (e) { return false; }
+}
+function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent || ''); }
+function canInstall() { return !!deferredPrompt || (isIOS() && !isStandalone()); }
+async function installApp() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    try { await deferredPrompt.userChoice; } catch (e) {}
+    deferredPrompt = null;
+    render();
+    return;
+  }
+  alert(isIOS() ? sl('installHelpIos') : sl('installHelpAndroid'));
+}
 
 // ── Utility ──
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -64,6 +82,25 @@ const SL = {
   youSaid: { it: 'Hai detto', en: 'You said', ja: 'あなたの発話' },
   phonetic: { it: 'Guida fonetica', en: 'Phonetic guide', ja: '発音ガイド' },
   feedbackLabel: { it: 'Consiglio', en: 'Feedback', ja: 'アドバイス' },
+  // Introduzione guidata + installazione
+  skip: { it: 'Salta', en: 'Skip', ja: 'スキップ' },
+  next: { it: 'Avanti', en: 'Next', ja: '次へ' },
+  back2: { it: 'Indietro', en: 'Back', ja: '戻る' },
+  startApp: { it: 'Inizia', en: 'Get started', ja: 'はじめる' },
+  installApp: { it: 'Installa sul telefono', en: 'Install on your phone', ja: 'スマホにインストール' },
+  reviewIntro: { it: 'Rivedi l’introduzione', en: 'Replay the intro', ja: 'はじめにを見直す' },
+  appSection: { it: 'App', en: 'App', ja: 'アプリ' },
+  installedMsg: { it: 'App già installata ✓', en: 'App already installed ✓', ja: 'インストール済み ✓' },
+  installHelpIos: { it: 'Su iPhone/iPad: tocca il pulsante Condividi in basso, poi “Aggiungi a Home”.', en: 'On iPhone/iPad: tap the Share button, then “Add to Home Screen”.', ja: 'iPhone/iPadでは、共有ボタンから「ホーム画面に追加」を選びます。' },
+  installHelpAndroid: { it: 'Apri il menu del browser (⋮) e scegli “Installa app” o “Aggiungi a schermata Home”.', en: 'Open the browser menu (⋮) and choose “Install app” or “Add to Home screen”.', ja: 'ブラウザのメニュー（⋮）から「アプリをインストール」または「ホーム画面に追加」を選びます。' },
+  introWelcomeT: { it: 'Benvenuto in Lingua Tutor', en: 'Welcome to Lingua Tutor', ja: 'Lingua Tutor へようこそ' },
+  introWelcomeB: { it: 'Il tuo insegnante IA personale per giapponese, inglese e italiano: conversazione, lezioni, lettura, scrittura e pronuncia.', en: 'Your personal AI teacher for Japanese, English and Italian: conversation, lessons, reading, writing and pronunciation.', ja: '日本語・英語・イタリア語のためのあなた専用のAI先生。会話・レッスン・読解・作文・発音。' },
+  introLearnT: { it: 'Impara dai tuoi errori', en: 'Learn from your mistakes', ja: '間違いから学ぶ' },
+  introLearnB: { it: 'Scrivi o parla: il tutor risponde e corregge ogni errore spiegandotelo, con risposte suggerite. E nel Diario ricorda i tuoi progressi.', en: 'Write or speak: the tutor replies and corrects every mistake with an explanation and suggested replies. The Journal remembers your progress.', ja: '書いても話してもOK。先生が間違いを説明付きで直し、返答の候補も提案。記録があなたの進歩を覚えています。' },
+  introKeyT: { it: 'Una chiave gratuita', en: 'A free key', ja: '無料のキー' },
+  introKeyB: { it: 'Per funzionare serve una chiave Google Gemini gratuita: la incolli una sola volta in Impostazioni e resta solo sul tuo dispositivo.', en: 'It runs on a free Google Gemini key: paste it once in Settings — it stays only on your device.', ja: '無料のGoogle Geminiキーで動きます。設定に一度貼るだけ。キーは端末内だけに保存されます。' },
+  introInstallT: { it: 'Installala sul telefono', en: 'Install it on your phone', ja: 'スマホにインストール' },
+  introInstallB: { it: 'Aggiungila alla schermata Home per usarla come una vera app, a schermo intero e sempre a portata di mano.', en: 'Add it to your Home screen to use it like a real, full-screen app that’s always at hand.', ja: 'ホーム画面に追加すれば、全画面の本物のアプリのようにいつでも使えます。' },
   micNeeded: { it: 'Il microfono non è supportato su questo browser (usa Android/Chrome).', en: 'Microphone not supported in this browser (use Android/Chrome).', ja: 'このブラウザではマイクを使えません（Android/Chrome推奨）。' },
 };
 const CAT_LABEL = {
@@ -98,6 +135,9 @@ export function boot() {
   document.addEventListener('click', onClick);
   document.addEventListener('input', onInput);
   document.addEventListener('change', onChange);
+  // Installazione PWA: cattura il prompt nativo (Android/Chrome) per offrirlo in-app.
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; if (view.route === 'intro' || view.route === 'settings') render(); });
+  window.addEventListener('appinstalled', () => { deferredPrompt = null; });
   render();
 }
 function applyTheme() {
@@ -110,10 +150,55 @@ function go(route, patch = {}) { view = { ...view, route, ...patch }; ttsStop();
 // ── Router ──
 function render() {
   const p = activeProfile();
+  if (view.route === 'intro') return renderIntro();
+  if (!S().cfg.introSeen && !p) { view.route = 'intro'; return renderIntro(); }
   if (!p && view.route !== 'onboarding') { view.route = 'onboarding'; }
   if (view.route === 'onboarding') return renderOnboarding();
   if (view.route === 'settings') return renderSettings();
   return renderMain();
+}
+
+// ── Introduzione guidata (primo avvio, o "Rivedi" dalle Impostazioni) ──
+function introSlides() {
+  const installExtra = isStandalone()
+    ? `<div class="intro-note">${sl('installedMsg')}</div>`
+    : `<button class="btn ghost intro-install" data-act="install-app">${icon('download', { size: 18 })} ${sl('installApp')}</button>`;
+  return [
+    { icon: 'logo', title: sl('introWelcomeT'), body: esc(sl('introWelcomeB')) },
+    { icon: 'chat', title: sl('introLearnT'), body: esc(sl('introLearnB')) },
+    { icon: 'key', title: sl('introKeyT'), body: esc(sl('introKeyB')), extra: `<a class="intro-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">${icon('key', { size: 15 })} ${t('getKey')}</a>` },
+    { icon: 'download', title: sl('introInstallT'), body: esc(sl('introInstallB')), extra: installExtra },
+  ];
+}
+function renderIntro() {
+  const slides = introSlides();
+  const i = Math.max(0, Math.min(introStep, slides.length - 1));
+  const s = slides[i];
+  const last = i === slides.length - 1;
+  const dots = slides.map((_, k) => `<span class="dot ${k === i ? 'on' : ''}"></span>`).join('');
+  app().innerHTML =
+    `<div class="intro">
+       <div class="intro-top">
+         <button class="iconbtn" data-act="cycle-ui" title="lingua / language / 言語">${icon('globe')}</button>
+         <div class="spacer"></div>
+         <button class="linkbtn" data-act="intro-skip">${sl('skip')}</button>
+       </div>
+       <div class="intro-body">
+         <div class="intro-ic">${icon(s.icon, { size: 42, sw: 1.6 })}</div>
+         <h2>${esc(s.title)}</h2>
+         <p>${s.body}</p>
+         ${s.extra || ''}
+       </div>
+       <div class="intro-dots">${dots}</div>
+       <div class="intro-nav">
+         ${i > 0 ? `<button class="btn ghost" data-act="intro-prev">${sl('back2')}</button>` : ''}
+         <button class="btn" data-act="${last ? 'intro-finish' : 'intro-next'}">${last ? sl('startApp') : sl('next')}</button>
+       </div>
+     </div>`;
+}
+function endIntro() {
+  S().cfg.introSeen = true; save(); introStep = 0;
+  go(activeProfile() ? 'main' : 'onboarding');
 }
 
 // ── Topbar ──
@@ -517,6 +602,11 @@ function renderSettings() {
       <div class="setblock"><h3>${icon('archive', { size: 17 })} ${t('backup')}</h3>
         <div class="row"><button class="btn ghost" data-act="export">${icon('download', { size: 16 })} ${t('exportBk')}</button><button class="btn ghost" data-act="import">${icon('upload', { size: 16 })} ${t('importBk')}</button></div>
       </div>
+
+      <div class="setblock"><h3>${icon('logo', { size: 17 })} ${sl('appSection')}</h3>
+        ${isStandalone() ? `<div class="hint" style="margin-bottom:10px">${sl('installedMsg')}</div>` : `<button class="btn ghost" data-act="install-app" style="margin-bottom:10px">${icon('download', { size: 16 })} ${sl('installApp')}</button>`}
+        <button class="btn ghost" data-act="review-intro">${icon('chat', { size: 16 })} ${sl('reviewIntro')}</button>
+      </div>
     </div>`;
 }
 
@@ -528,6 +618,11 @@ function onClick(e) {
   switch (act) {
     case 'back': return doBack();
     case 'settings': diarizeCurrentIfChat(); return go('settings');
+    case 'intro-next': introStep++; return renderIntro();
+    case 'intro-prev': introStep = Math.max(0, introStep - 1); return renderIntro();
+    case 'intro-skip': case 'intro-finish': return endIntro();
+    case 'install-app': return installApp();
+    case 'review-intro': introStep = 0; return go('intro');
     case 'cycle-ui': { const order = ['it', 'en', 'ja']; S().cfg.uiLang = order[(order.indexOf(uiLang()) + 1) % order.length]; save(); return render(); }
     case 'tab': { const m = b.dataset.mode; if (m === view.mode) return; diarizeCurrentIfChat(); view.mode = m; ttsStop(); return renderMain(); }
     case 'switch': return cycleProfile();

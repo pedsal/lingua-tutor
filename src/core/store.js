@@ -34,6 +34,7 @@ function defaults(m) {
   if (c.ttsNeural === undefined) c.ttsNeural = false;      // voce neurale IA (Gemini TTS), opt-in
   if (c.ttsNeuralVoice === undefined) c.ttsNeuralVoice = 'Kore';
   if (c.uiLang === undefined) c.uiLang = 'it';             // lingua dell'interfaccia
+  if (c.introSeen === undefined) c.introSeen = false;      // introduzione guidata già vista
   if (!Array.isArray(m.profiles)) m.profiles = [];
   // Migrazione: i profili giapponesi con vecchi livelli CEFR passano a JLPT.
   const CEFR2JLPT = { A1: 'N5', A2: 'N5', B1: 'N4', B2: 'N3', C1: 'N2' };
