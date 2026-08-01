@@ -132,11 +132,12 @@ export function speakTutor(text, profile, force) {
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 export function micAvailable() { return !!SR; }
 export function startDictation(code, { onResult, onEnd, onError } = {}) {
-  if (!SR) { onError && onError(new Error('UNSUPPORTED')); return null; }
+  if (!SR) { onError && onError('unsupported'); return null; }
   const rec = new SR();
   rec.lang = LANGS[code] ? LANGS[code].bcp : 'en-US';
   rec.interimResults = true;
   rec.continuous = false;
+  rec.maxAlternatives = 1;
   let finalText = '';
   rec.onresult = (e) => {
     let interim = '';
@@ -146,8 +147,9 @@ export function startDictation(code, { onResult, onEnd, onError } = {}) {
     }
     onResult && onResult(finalText + interim, finalText);
   };
-  rec.onerror = (e) => onError && onError(e);
+  // Passa SEMPRE un codice d'errore stringa (es. 'not-allowed', 'no-speech', 'network').
+  rec.onerror = (e) => onError && onError((e && e.error) || 'error');
   rec.onend = () => onEnd && onEnd(finalText);
-  try { rec.start(); } catch (e) { onError && onError(e); }
+  try { rec.start(); } catch (e) { onError && onError('start-failed'); }
   return rec;
 }

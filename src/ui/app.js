@@ -109,6 +109,13 @@ const SL = {
   introKeyB: { it: 'Per funzionare serve una chiave Google Gemini gratuita: la incolli una sola volta in Impostazioni e resta solo sul tuo dispositivo.', en: 'It runs on a free Google Gemini key: paste it once in Settings — it stays only on your device.', ja: '無料のGoogle Geminiキーで動きます。設定に一度貼るだけ。キーは端末内だけに保存されます。' },
   introInstallT: { it: 'Installala sul telefono', en: 'Install it on your phone', ja: 'スマホにインストール' },
   introInstallB: { it: 'Aggiungila alla schermata Home per usarla come una vera app, a schermo intero e sempre a portata di mano.', en: 'Add it to your Home screen to use it like a real, full-screen app that’s always at hand.', ja: 'ホーム画面に追加すれば、全画面の本物のアプリのようにいつでも使えます。' },
+  micDenied: { it: 'Permesso microfono negato. Attivalo per questo sito nelle impostazioni del browser (tocca il lucchetto accanto all’indirizzo).', en: 'Microphone permission denied. Allow it for this site in your browser settings (tap the lock next to the address).', ja: 'マイクの許可がありません。ブラウザの設定（アドレス横の鍵アイコン）でこのサイトに許可してください。' },
+  micNoSpeech: { it: 'Non ho sentito nulla — parla vicino al telefono e riprova.', en: 'I didn’t hear anything — speak close to the phone and try again.', ja: '音声が聞き取れませんでした。近くで話してもう一度お試しください。' },
+  micNoDevice: { it: 'Microfono non disponibile su questo dispositivo.', en: 'No microphone available on this device.', ja: 'この端末にマイクがありません。' },
+  micNetwork: { it: 'Il riconoscimento vocale ha bisogno di internet.', en: 'Speech recognition needs an internet connection.', ja: '音声認識にはインターネット接続が必要です。' },
+  micLang: { it: 'Questa lingua non è supportata dal riconoscimento vocale del dispositivo.', en: 'This language isn’t supported by the device’s speech recognition.', ja: 'この言語は端末の音声認識に対応していません。' },
+  micUnsupportedMsg: { it: 'Il riconoscimento vocale non è disponibile su questo browser (funziona su Android/Chrome).', en: 'Speech recognition isn’t available in this browser (works on Android/Chrome).', ja: 'このブラウザでは音声認識を使えません（Android/Chrome推奨）。' },
+  micGeneric: { it: 'Non riesco ad avviare il microfono. Riprova.', en: 'Couldn’t start the microphone. Please try again.', ja: 'マイクを起動できませんでした。もう一度お試しください。' },
   micNeeded: { it: 'Il microfono non è supportato su questo browser (usa Android/Chrome).', en: 'Microphone not supported in this browser (use Android/Chrome).', ja: 'このブラウザではマイクを使えません（Android/Chrome推奨）。' },
 };
 const CAT_LABEL = {
@@ -471,7 +478,7 @@ function recordSpeech(btn) {
   rec = startDictation(p.target, {
     onResult: (txt) => { finalT = txt; },
     onEnd: () => { rec = null; evalSpeech(finalT); },
-    onError: () => { rec = null; if (view.mode === 'pronuncia') paintPanel(); },
+    onError: (code) => { rec = null; if (view.mode === 'pronuncia') paintPanel(); micError(code); },
   });
 }
 async function evalSpeech(transcript) {
@@ -735,12 +742,26 @@ function toggleMic(btn) {
   if (rec) { try { rec.stop(); } catch (e) {} rec = null; btn.classList.remove('rec'); return; }
   const code = activeProfile().target;
   const inp = document.getElementById('inp');
+  ttsStop();   // ferma l'eventuale voce in corso: su mobile può bloccare il microfono
   btn.classList.add('rec');
+  let got = false;
   rec = startDictation(code, {
-    onResult: (text) => { if (inp) { inp.value = text; inp.style.height = 'auto'; inp.style.height = Math.min(120, inp.scrollHeight) + 'px'; } },
-    onEnd: () => { rec = null; btn.classList.remove('rec'); if (inp && inp.value.trim()) doSend(); },
-    onError: () => { rec = null; btn.classList.remove('rec'); alert(t('micUnsupported')); },
+    onResult: (text) => { if (text && text.trim()) got = true; if (inp) { inp.value = text; inp.style.height = 'auto'; inp.style.height = Math.min(120, inp.scrollHeight) + 'px'; } },
+    onEnd: () => { rec = null; btn.classList.remove('rec'); if (inp && inp.value.trim()) doSend(); else if (!got) toast(sl('micNoSpeech')); },
+    onError: (code2) => { rec = null; btn.classList.remove('rec'); micError(code2); },
   });
+}
+// Messaggi chiari per i vari errori del riconoscimento vocale (invece del generico
+// "non supportato"), così l'utente capisce (permesso, nessun parlato, rete…).
+function micError(code) {
+  const map = {
+    'not-allowed': 'micDenied', 'service-not-allowed': 'micDenied',
+    'no-speech': 'micNoSpeech', 'audio-capture': 'micNoDevice',
+    'network': 'micNetwork', 'language-not-supported': 'micLang',
+    'unsupported': 'micUnsupportedMsg', 'aborted': null,
+  };
+  const key = code in map ? map[code] : 'micGeneric';
+  if (key) toast(sl(key));
 }
 function doExport() {
   const blob = new Blob([exportState()], { type: 'application/json' });
