@@ -12,6 +12,7 @@ export const GEMINI_TTS_VOICES = ['Kore', 'Puck', 'Charon', 'Zephyr', 'Aoede', '
 function clean(raw) {
   return String(raw || '')
     .replace(/[*_`#>]+/g, ' ')
+    .replace(/[（(][^）)]*[)）]/g, ' ')   // togli le letture/glosse tra parentesi (niente parole ripetute)
     .replace(/[«»「」『』“”"•·◦▪●○►▶★☆♪→←✏️]/g, ' ')
     .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}️]/gu, ' ')
     .replace(/[ \t]{2,}/g, ' ').trim();

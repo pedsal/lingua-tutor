@@ -55,7 +55,9 @@ const _JA_WORD = /[぀-ヿ㐀-䶿一-龯]/;
 function cleanForTTS(raw) {
   return String(raw || '')
     .replace(/[*_`#>]+/g, ' ')
-    .replace(/[（(][^）)]*[)）]/g, (mm) => (_JA_WORD.test(mm) ? mm : ' '))
+    // Rimuovi SEMPRE le letture/glosse tra parentesi (es. "日本語 (にほんご - nihongo)"),
+    // altrimenti la voce ripete 2-3 volte la stessa parola.
+    .replace(/[（(][^）)]*[)）]/g, ' ')
     .replace(/[（）()［］\[\]｛｝{}]/g, ' ')
     .replace(/[—–]/g, ', ')
     .replace(/[«»「」『』“”"<>|~^=/\\•·◦▪●○►▶★☆♪→←✏️]/g, ' ')
