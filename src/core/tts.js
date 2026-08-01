@@ -80,12 +80,20 @@ export function ttsStop() {
 // scritta interamente nella lingua studiata (le spiegazioni stanno in campi a
 // parte), quindi una sola voce va bene per qualsiasi lingua, anche non latina.
 // force = riproduzione manuale ("Ascolta"): suona anche se l'auto-lettura è spenta.
+// Lingua della voce: ai livelli iniziali (intro / N5 / A1) la risposta è per lo più
+// nella lingua di spiegazione, quindi si legge con quella voce; altrimenti l'obiettivo.
+function speechLangFor(profile) {
+  if (!profile || !profile.target) return 'en';
+  const beginner = profile.level === 'intro' || profile.level === 'N5' || profile.level === 'A1';
+  const code = beginner ? (profile.expl || profile.target) : profile.target;
+  return LANGS[code] ? code : (LANGS[profile.target] ? profile.target : 'en');
+}
 export function speakMsg(text, profile, force) {
   if ((!force && S().cfg.tts === false) || !ttsAvailable()) return;
   ttsStop();
   const clean = cleanForTTS(text);
   if (!clean.trim()) return;
-  const code = (profile && profile.target && LANGS[profile.target]) ? profile.target : 'en';
+  const code = speechLangFor(profile);
   const u = new SpeechSynthesisUtterance(clean);
   u.lang = LANGS[code].bcp;
   const v = bestVoice(code); if (v) u.voice = v;

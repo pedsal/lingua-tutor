@@ -39,25 +39,43 @@ const PERSONA_PROMPT = {
   business: 'Focus on formal register, work emails and professional etiquette (keigo in Japanese, formal register in Italian/English).',
 };
 
+// Fascia didattica dal livello: quanto usare la lingua-obiettivo vs la lingua che
+// lo studente capisce già. È la chiave della calibrazione per principianti.
+export function tier(profile) {
+  const l = profile.level;
+  if (l === 'intro') return 'intro';
+  if (l === 'N5' || l === 'A1') return 'beginner';
+  if (l === 'N4' || l === 'A2') return 'elementary';
+  return 'advanced';
+}
+export const EXPLANATION_VOICE_LEVELS = ['intro', 'N5', 'A1'];   // usato anche dal TTS
+
+function langPolicy(profile) {
+  const m = meta(profile);
+  const writing = profile.target === 'ja' ? 'hiragana, then katakana' : 'the alphabet and its sounds';
+  return {
+    intro: `\n\nLANGUAGE POLICY — ABSOLUTE INTRODUCTION: the student does NOT understand ${m.targetEn} yet. Speak and explain ALMOST ENTIRELY in ${m.explNative}. Do NOT hold a conversation in ${m.targetEn} and do NOT dump ${m.targetEn} text on them. Instead, gently INTRODUCE the language: start from the writing system and sounds (${writing}) and the very first essential words/greetings, only a FEW at a time, each with its reading and its meaning in ${m.explNative}. Keep every turn very short, and check the student has understood before adding anything new.`,
+    beginner: `\n\nLANGUAGE POLICY — BEGINNER: speak MOSTLY in ${m.explNative}. Introduce short ${m.targetEn} phrases GRADUALLY, always with reading and meaning in ${m.explNative}. Invite the student to try very short phrases; go slowly and build up.`,
+    elementary: `\n\nLANGUAGE POLICY — ELEMENTARY: use a balance of ${m.explNative} and simple ${m.targetEn}; gloss every new word in ${m.explNative}. Increase ${m.targetEn} slowly as the student keeps up.`,
+    advanced: `\n\nLANGUAGE POLICY: speak mostly in ${m.targetEn}, adding brief ${m.explNative} help only for words likely unknown at this level.`,
+  }[tier(profile)];
+}
+
 function base(profile) {
   const m = meta(profile);
   const scriptNote = profile.target === 'ja'
     ? `\n- When you write ${m.targetEn}, add the reading in rōmaji in parentheses the first time a word appears, e.g. 学校 (gakkō), and keep sentences short at low levels.`
     : '';
-  const introNote = m.level === 'intro'
-    ? `\n- The student is at the very START: first teach the writing system and pronunciation (${profile.target === 'ja' ? 'hiragana, then katakana' : 'the alphabet and its sounds'}), use only very short words and set phrases, ALWAYS give a transliteration/rōmaji and the meaning, and advance in tiny steps with lots of encouragement.`
-    : '';
   return `You are an expert, warm and patient private language tutor.
 The student's name is ${m.name}. They are learning ${m.targetEn} at level: ${m.levelText}.
 Explanation language: ${m.explNative}. ALWAYS write your explanations, encouragement and instructions in ${m.explNative}.
-Write example sentences and target-language practice in ${m.targetEn}.
 
 Tutor style: ${PERSONA_PROMPT[m.persona] || PERSONA_PROMPT.friendly}
 
 Core rules:
 - Adapt vocabulary and grammar strictly to the student's level (${m.levelText}). Do not overwhelm the student.
 - Be encouraging but get to the point; no empty filler.
-- Never invent facts about the language; if unsure, say so.${scriptNote}${introNote}`;
+- Never invent facts about the language; if unsure, say so.${scriptNote}${langPolicy(profile)}`;
 }
 
 // Istruzione condivisa per l'output STRUTTURATO delle modalità conversazionali.
@@ -66,8 +84,10 @@ function structuredNote(profile) {
   return `
 
 Return a STRUCTURED JSON object with these fields:
-- "reply": your response to the student, written in ${m.targetEn} (this is the conversation/lesson/passage text the student reads).
-- "translation": full translation of "reply" into ${m.explNative}.
+- "reply": your message to the student. ${tier(profile) === 'intro' || tier(profile) === 'beginner'
+    ? `Write it MOSTLY in ${m.explNative} (the language the student understands), embedding only the few ${m.targetEn} words/phrases you are introducing, each with its reading and meaning. Do NOT write long ${m.targetEn} text.`
+    : `Write it in ${m.targetEn} (the conversation/lesson/passage text the student reads).`}
+- "translation": ${tier(profile) === 'intro' || tier(profile) === 'beginner' ? `full ${m.explNative} version if the reply contains ${m.targetEn}, else "".` : `full translation of "reply" into ${m.explNative}.`}
 - "romaji": ${profile.target === 'ja' ? 'the rōmaji transliteration of "reply".' : 'empty string "".'}
 - "feedback": ONE short sentence in ${m.explNative} assessing the student's last message. If it was perfect, give a specific compliment. If the student has not written yet, leave "".
 - "corrections": array of the student's mistakes in their LAST message. For each: "original" (their exact wrong fragment), "corrected", "explanation" (in ${m.explNative}), "category" (one of grammar, vocabulary, politeness_register, kanji_spelling, pronunciation, word_order)${profile.target === 'ja' ? ', "romaji" and "furigana" for the corrected fragment' : ''}. Empty array if no mistakes. Never invent errors.
@@ -82,17 +102,18 @@ export function systemFor(profile, mode, extra = '') {
     return `${b}
 
 Mode: FREE CONVERSATION.
-- Have a natural conversation with the student. Lead with questions in ${m.targetEn} suited to level ${m.levelText}, and keep the topic light and relatable.
-- In "reply", speak mostly in ${m.targetEn}; keep sentences at the student's level.
-- Put any error correction in the "corrections" field (not inside "reply"). React to the content and ask ONE follow-up question.${structuredNote(profile)}
+- Follow the LANGUAGE POLICY above for how much ${m.targetEn} vs ${m.explNative} to use at this level (at intro/beginner, guide gently and mostly in ${m.explNative} — do NOT launch a target-language conversation).
+- Keep it warm and relatable; end by inviting the student to try a small step suited to their level.
+- Put any error correction in the "corrections" field (not inside "reply").${structuredNote(profile)}
 ${extra}`;
   }
   if (mode === 'lesson') {
     return `${b}
 
 Mode: GUIDED LESSON. You are teaching a focused mini-lesson.
-- Teach ONE clear point (a grammar structure, ~5 words, or a useful expression) chosen for level ${m.levelText}.
-- In "reply", structure the turn: short explanation, 2–3 examples with meaning, then a small exercise for the student to try; keep each turn short so it feels like a real lesson.
+- Teach ONE clear point chosen for level ${m.levelText} (at intro: the writing system / sounds / very first words; at beginner: one simple structure or a few words).
+- Follow the LANGUAGE POLICY above: at intro/beginner explain mostly in ${m.explNative} and introduce ${m.targetEn} in tiny, glossed steps.
+- Structure the turn: short explanation, 1–3 examples with reading and meaning, then a small exercise; keep each turn short like a real lesson.
 - Put corrections of the student's attempts in the "corrections" field.${structuredNote(profile)}
 ${extra}`;
   }
@@ -100,7 +121,7 @@ ${extra}`;
     return `${b}
 
 Mode: READING PRACTICE.
-- When asked for a new text, put in "reply" a SHORT reading passage in ${m.targetEn} (4–7 sentences) for level ${m.levelText} on an everyday topic, followed by a short vocabulary list (word — meaning) and 2 comprehension questions.
+- At intro/beginner the student can barely read yet: instead of a passage, present just a FEW simple ${m.targetEn} words or characters, each with its reading and meaning in ${m.explNative}, and one tiny recognition task. At elementary and above, give a SHORT reading passage in ${m.targetEn} (4–7 sentences) for level ${m.levelText}, then a short vocabulary list (word — meaning) and 2 comprehension questions.
 - When the student answers, put corrections in the "corrections" field and react in "reply".${structuredNote(profile)}
 ${extra}`;
   }
@@ -180,8 +201,13 @@ export function speechPhraseSeed(profile) {
 // Primo messaggio "seme" per far partire la modalità (istruzione nascosta al modello).
 export function seedFor(profile, mode) {
   const m = meta(profile);
-  if (mode === 'chat') return `Greet ${m.name} warmly in ${m.explNative}, then start a simple conversation in ${m.targetEn} with one easy opening question for level ${m.levelText}.`;
-  if (mode === 'reading') return `Give me a brand-new reading passage now, following the reading-practice format.`;
+  const T = tier(profile);
+  if (mode === 'chat') {
+    if (T === 'intro') return `Warmly welcome ${m.name} in ${m.explNative}. In a few short lines, in ${m.explNative}, say what ${m.targetEn} is and how you'll start together (its writing system and a first greeting). Teach just ONE greeting with its reading and meaning. Do NOT start a conversation in ${m.targetEn}. End by gently inviting them to try repeating that one greeting.`;
+    if (T === 'beginner') return `Greet ${m.name} mostly in ${m.explNative} and introduce yourself as their tutor. Teach ONE very simple ${m.targetEn} phrase with its reading and meaning, and invite them to try it. Keep it tiny and reassuring.`;
+    return `Greet ${m.name} warmly in ${m.explNative}, then start a simple conversation in ${m.targetEn} with one easy opening question for level ${m.levelText}.`;
+  }
+  if (mode === 'reading') return `Give me a brand-new reading item now, following the reading-practice rules for my level.`;
   return null;
 }
 
@@ -219,5 +245,11 @@ export function memoryContext(profile) {
 // Seme della lezione del giorno: sceglie un argomento nuovo tenendo conto del diario.
 export function lessonSeed(profile) {
   const m = meta(profile);
+  if (tier(profile) === 'intro') {
+    const start = profile.target === 'ja'
+      ? 'begin with the first hiragana (e.g. あ い う え お) and how each sounds'
+      : 'begin with the alphabet and pronunciation basics';
+    return `Start the VERY FIRST lesson for ${m.name}, learning ${m.targetEn} from zero. Teaching mostly in ${m.explNative}, ${start}. Introduce only a few items, each with its reading/sound and meaning, then a tiny practice. Do NOT lecture in ${m.targetEn}. Keep it short and encouraging.`;
+  }
   return `Start today's lesson now for ${m.name} (level ${m.levelText}, learning ${m.targetEn}). Pick ONE fresh, useful point that fits their level and has not been covered in the recent lessons above. Begin the guided lesson.`;
 }
