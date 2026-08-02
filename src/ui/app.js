@@ -13,6 +13,7 @@ import { systemFor, seedFor, lessonSeed, memoryContext, maybeDiarize, chatSchema
   PERSONAS, PERSONA_LABEL } from '../core/tutor.js';
 import { speakTutor, speakSample, ttsStop, ttsAvailable, micAvailable, startDictation, voicesForLang, bestVoice } from '../core/tts.js';
 import { GEMINI_TTS_VOICES, NEURAL_TTS_MODEL } from '../core/neural.js';
+import { geminiMicAvailable, isRecording, startRecording, stopAndTranscribe, cancelRecording } from '../core/voice-input.js';
 import { icon } from './icons.js';
 
 // Badge lingua (sostituisce le bandiere emoji): sigla in un chip discreto.
@@ -117,6 +118,10 @@ const SL = {
   micUnsupportedMsg: { it: 'Il riconoscimento vocale non è disponibile su questo browser (funziona su Android/Chrome).', en: 'Speech recognition isn’t available in this browser (works on Android/Chrome).', ja: 'このブラウザでは音声認識を使えません（Android/Chrome推奨）。' },
   micGeneric: { it: 'Non riesco ad avviare il microfono. Riprova.', en: 'Couldn’t start the microphone. Please try again.', ja: 'マイクを起動できませんでした。もう一度お試しください。' },
   micListening: { it: '🎤 Parla ora…', en: '🎤 Speak now…', ja: '🎤 どうぞ話してください…' },
+  micTapToStop: { it: '🎤 Registrazione… tocca di nuovo per fermare', en: '🎤 Recording… tap again to stop', ja: '🎤 録音中…もう一度タップで停止' },
+  transcribing: { it: 'Trascrivo…', en: 'Transcribing…', ja: '文字起こし中…' },
+  micGeminiOn: { it: 'Microfono via IA (Gemini)', en: 'AI microphone (Gemini)', ja: 'AIマイク（Gemini）' },
+  micGeminiHelp: { it: 'Registra e trascrive con la tua chiave Gemini: funziona anche dove il microfono del browser non va (es. alcuni Pixel/iPhone). Tocca per iniziare, tocca di nuovo per fermare. Consuma un po’ di quota.', en: 'Records and transcribes with your Gemini key: works even where the browser mic fails (e.g. some Pixel/iPhone). Tap to start, tap again to stop. Uses some quota.', ja: 'あなたのGeminiキーで録音・文字起こし。ブラウザのマイクが使えない端末（一部のPixel/iPhone）でも動きます。タップで開始、もう一度で停止。少し無料枠を消費します。' },
   micNeeded: { it: 'Il microfono non è supportato su questo browser (usa Android/Chrome).', en: 'Microphone not supported in this browser (use Android/Chrome).', ja: 'このブラウザではマイクを使えません（Android/Chrome推奨）。' },
 };
 const CAT_LABEL = {
@@ -173,7 +178,7 @@ function applyTheme() {
   if (th === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
   else document.documentElement.removeAttribute('data-theme');
 }
-function go(route, patch = {}) { view = { ...view, route, ...patch }; ttsStop(); render(); }
+function go(route, patch = {}) { view = { ...view, route, ...patch }; cancelRecording(); ttsStop(); render(); }
 
 // ── Router ──
 function render() {
@@ -472,6 +477,7 @@ async function newPhrase() {
 }
 function recordSpeech(btn) {
   const p = activeProfile();
+  if (S().cfg.micGemini && geminiMicAvailable()) return geminiMicSpeech(btn);
   if (rec) { try { rec.stop(); } catch (e) {} rec = null; return; }
   if (!micAvailable()) { toast(sl('micUnsupportedMsg')); return; }
   ttsStop();
@@ -483,6 +489,20 @@ function recordSpeech(btn) {
     onEnd: () => { rec = null; evalSpeech(finalT); },
     onError: (code) => { rec = null; if (view.mode === 'pronuncia') paintPanel(); micError(code); },
   });
+}
+async function geminiMicSpeech(btn) {
+  if (isRecording()) {
+    btn.innerHTML = `${icon('mic', { size: 18 })} ${sl('transcribing')}`;
+    let txt = '';
+    try { txt = await stopAndTranscribe(LANGS[activeProfile().target].name.en); }
+    catch (e) { if (view.mode === 'pronuncia') paintPanel(); toast(errMsg(e)); return; }
+    if (view.mode === 'pronuncia') paintPanel();
+    evalSpeech(txt);
+    return;
+  }
+  ttsStop();
+  try { await startRecording(); btn.classList.add('rec'); btn.innerHTML = `${icon('mic', { size: 18 })} ${sl('micTapToStop')}`; }
+  catch (e) { toast(sl('micDenied')); }
 }
 async function evalSpeech(transcript) {
   const p = activeProfile();
@@ -605,6 +625,9 @@ function renderSettings() {
         <div class="toggle" data-act="tog-neural"><span>${sl('neuralOn')}</span><span class="sw ${c.ttsNeural ? 'on' : ''}"></span></div>
         <div class="hint" style="margin:6px 2px 0">${sl('neuralHelp')}</div>
         <div class="hint" style="margin:6px 2px 0">${sl('neuralModel')}: <code>${NEURAL_TTS_MODEL}</code></div>
+        <div style="height:14px"></div>
+        <div class="toggle" data-act="tog-micgemini"><span>${sl('micGeminiOn')}</span><span class="sw ${c.micGemini ? 'on' : ''}"></span></div>
+        <div class="hint" style="margin:6px 2px 0">${sl('micGeminiHelp')}</div>
         ${c.ttsNeural ? `<div class="field" style="margin-top:12px"><label>${sl('neuralVoice')}</label>
           <div class="row"><select id="s-neuralvoice" style="flex:1">${GEMINI_TTS_VOICES.map((v) => `<option value="${v}" ${c.ttsNeuralVoice === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
           <button class="iconbtn" data-act="neural-test" aria-label="test">${icon('volume', { size: 18 })}</button></div></div>` : ''}
@@ -659,7 +682,7 @@ function onClick(e) {
     case 'install-app': return installApp();
     case 'review-intro': introStep = 0; return go('intro');
     case 'cycle-ui': { const order = ['it', 'en', 'ja']; S().cfg.uiLang = order[(order.indexOf(uiLang()) + 1) % order.length]; save(); return render(); }
-    case 'tab': { const m = b.dataset.mode; if (m === view.mode) return; diarizeCurrentIfChat(); view.mode = m; ttsStop(); return renderMain(); }
+    case 'tab': { const m = b.dataset.mode; if (m === view.mode) return; diarizeCurrentIfChat(); view.mode = m; cancelRecording(); ttsStop(); return renderMain(); }
     case 'switch': return cycleProfile();
     case 'send': return doSend();
     case 'mic': return toggleMic(b);
@@ -686,6 +709,7 @@ function onClick(e) {
     case 'tog-tts': S().cfg.tts = !(S().cfg.tts !== false); save(); return renderSettings();
     case 'tog-auto': S().cfg.autoSpeak = !S().cfg.autoSpeak; save(); return renderSettings();
     case 'tog-neural': S().cfg.ttsNeural = !S().cfg.ttsNeural; save(); return renderSettings();
+    case 'tog-micgemini': S().cfg.micGemini = !S().cfg.micGemini; save(); return renderSettings();
     case 'voice-test': return speakSample(b.dataset.code);
     case 'neural-test': return speakTutor('こんにちは。Hello. Ciao, questa è la voce neurale.', activeProfile(), true);
     case 'clear-memory': if (confirm(sl('clearMemoryConfirm'))) { clearDiary(S().activeId); render(); } return;
@@ -742,6 +766,7 @@ async function restartMode(mode) {
   startMode(mode);
 }
 function toggleMic(btn) {
+  if (S().cfg.micGemini && geminiMicAvailable()) return geminiMicChat(btn);
   if (rec) { try { rec.stop(); } catch (e) {} rec = null; btn.classList.remove('rec'); return; }
   const code = activeProfile().target;
   const inp = document.getElementById('inp');
@@ -754,6 +779,23 @@ function toggleMic(btn) {
     onEnd: () => { rec = null; btn.classList.remove('rec'); if (inp && inp.value.trim()) doSend(); else if (!got) toast(sl('micNoSpeech')); },
     onError: (code2) => { rec = null; btn.classList.remove('rec'); micError(code2); },
   });
+}
+// Microfono via IA Gemini (chat): 1° tap avvia la registrazione, 2° tap ferma e
+// trascrive. Bypassa il servizio vocale di sistema (utile su Pixel/iPhone).
+async function geminiMicChat(btn) {
+  const inp = document.getElementById('inp');
+  if (isRecording()) {
+    toast(sl('transcribing'));
+    let txt = '';
+    try { txt = await stopAndTranscribe(LANGS[activeProfile().target].name.en); }
+    catch (e) { btn.classList.remove('rec'); toast(errMsg(e)); return; }
+    btn.classList.remove('rec');
+    if (txt && txt.trim()) { if (inp) inp.value = txt; doSendText(txt); } else toast(sl('micNoSpeech'));
+    return;
+  }
+  ttsStop();
+  try { await startRecording(); btn.classList.add('rec'); toast(sl('micTapToStop')); }
+  catch (e) { toast(sl('micDenied')); }
 }
 // Messaggi chiari per i vari errori del riconoscimento vocale (invece del generico
 // "non supportato"), così l'utente capisce (permesso, nessun parlato, rete…).
