@@ -110,7 +110,7 @@ const SL = {
   introInstallT: { it: 'Installala sul telefono', en: 'Install it on your phone', ja: 'スマホにインストール' },
   introInstallB: { it: 'Aggiungila alla schermata Home per usarla come una vera app, a schermo intero e sempre a portata di mano.', en: 'Add it to your Home screen to use it like a real, full-screen app that’s always at hand.', ja: 'ホーム画面に追加すれば、全画面の本物のアプリのようにいつでも使えます。' },
   micDenied: { it: 'Permesso microfono negato. Attivalo per questo sito nelle impostazioni del browser (tocca il lucchetto accanto all’indirizzo).', en: 'Microphone permission denied. Allow it for this site in your browser settings (tap the lock next to the address).', ja: 'マイクの許可がありません。ブラウザの設定（アドレス横の鍵アイコン）でこのサイトに許可してください。' },
-  micNoSpeech: { it: 'Non ho sentito nulla — parla vicino al telefono e riprova.', en: 'I didn’t hear anything — speak close to the phone and try again.', ja: '音声が聞き取れませんでした。近くで話してもう一度お試しください。' },
+  micNoSpeech: { it: 'Non ho sentito nulla. Se il microfono del browser non funziona (capita su alcuni telefoni), detta col tasto 🎤 della tastiera del telefono.', en: 'I didn’t hear anything. If the browser mic doesn’t work (happens on some phones), dictate with the 🎤 key on your phone’s keyboard.', ja: '音声が聞き取れませんでした。ブラウザのマイクが使えない場合は、キーボードの🎤キーで音声入力してください。' },
   micNoDevice: { it: 'Microfono non disponibile su questo dispositivo.', en: 'No microphone available on this device.', ja: 'この端末にマイクがありません。' },
   micNetwork: { it: 'Il riconoscimento vocale ha bisogno di internet.', en: 'Speech recognition needs an internet connection.', ja: '音声認識にはインターネット接続が必要です。' },
   micLang: { it: 'Questa lingua non è supportata dal riconoscimento vocale del dispositivo.', en: 'This language isn’t supported by the device’s speech recognition.', ja: 'この言語は端末の音声認識に対応していません。' },
@@ -470,15 +470,11 @@ async function newPhrase() {
   } catch (e) { alert(errMsg(e)); }
   if (view.mode === 'pronuncia') paintPanel();
 }
-async function recordSpeech(btn) {
+function recordSpeech(btn) {
   const p = activeProfile();
   if (rec) { try { rec.stop(); } catch (e) {} rec = null; return; }
   if (!micAvailable()) { toast(sl('micUnsupportedMsg')); return; }
   ttsStop();
-  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach((t) => t.stop()); }
-    catch (e) { toast(sl('micDenied')); return; }
-  }
   btn.classList.add('rec'); btn.innerHTML = `${icon('mic', { size: 18 })} ${sl('listening')}`;
   let finalT = '';
   rec = startDictation(p.target, {
@@ -745,16 +741,11 @@ async function restartMode(mode) {
   paintMsgs();
   startMode(mode);
 }
-async function toggleMic(btn) {
+function toggleMic(btn) {
   if (rec) { try { rec.stop(); } catch (e) {} rec = null; btn.classList.remove('rec'); return; }
   const code = activeProfile().target;
   const inp = document.getElementById('inp');
   ttsStop();   // ferma l'eventuale voce in corso: su mobile può bloccare il microfono
-  // Permesso microfono esplicito: se negato lo diciamo subito (invece del silenzio).
-  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach((t) => t.stop()); }
-    catch (e) { toast(sl('micDenied')); return; }
-  }
   btn.classList.add('rec');
   let got = false;
   rec = startDictation(code, {
