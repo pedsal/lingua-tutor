@@ -116,6 +116,7 @@ const SL = {
   micLang: { it: 'Questa lingua non è supportata dal riconoscimento vocale del dispositivo.', en: 'This language isn’t supported by the device’s speech recognition.', ja: 'この言語は端末の音声認識に対応していません。' },
   micUnsupportedMsg: { it: 'Il riconoscimento vocale non è disponibile su questo browser (funziona su Android/Chrome).', en: 'Speech recognition isn’t available in this browser (works on Android/Chrome).', ja: 'このブラウザでは音声認識を使えません（Android/Chrome推奨）。' },
   micGeneric: { it: 'Non riesco ad avviare il microfono. Riprova.', en: 'Couldn’t start the microphone. Please try again.', ja: 'マイクを起動できませんでした。もう一度お試しください。' },
+  micListening: { it: '🎤 Parla ora…', en: '🎤 Speak now…', ja: '🎤 どうぞ話してください…' },
   micNeeded: { it: 'Il microfono non è supportato su questo browser (usa Android/Chrome).', en: 'Microphone not supported in this browser (use Android/Chrome).', ja: 'このブラウザではマイクを使えません（Android/Chrome推奨）。' },
 };
 const CAT_LABEL = {
@@ -469,13 +470,19 @@ async function newPhrase() {
   } catch (e) { alert(errMsg(e)); }
   if (view.mode === 'pronuncia') paintPanel();
 }
-function recordSpeech(btn) {
+async function recordSpeech(btn) {
   const p = activeProfile();
   if (rec) { try { rec.stop(); } catch (e) {} rec = null; return; }
-  if (!micAvailable()) { alert(sl('micNeeded')); return; }
+  if (!micAvailable()) { toast(sl('micUnsupportedMsg')); return; }
+  ttsStop();
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach((t) => t.stop()); }
+    catch (e) { toast(sl('micDenied')); return; }
+  }
   btn.classList.add('rec'); btn.innerHTML = `${icon('mic', { size: 18 })} ${sl('listening')}`;
   let finalT = '';
   rec = startDictation(p.target, {
+    onStart: () => { toast(sl('micListening')); },
     onResult: (txt) => { finalT = txt; },
     onEnd: () => { rec = null; evalSpeech(finalT); },
     onError: (code) => { rec = null; if (view.mode === 'pronuncia') paintPanel(); micError(code); },
@@ -738,14 +745,20 @@ async function restartMode(mode) {
   paintMsgs();
   startMode(mode);
 }
-function toggleMic(btn) {
+async function toggleMic(btn) {
   if (rec) { try { rec.stop(); } catch (e) {} rec = null; btn.classList.remove('rec'); return; }
   const code = activeProfile().target;
   const inp = document.getElementById('inp');
   ttsStop();   // ferma l'eventuale voce in corso: su mobile può bloccare il microfono
+  // Permesso microfono esplicito: se negato lo diciamo subito (invece del silenzio).
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach((t) => t.stop()); }
+    catch (e) { toast(sl('micDenied')); return; }
+  }
   btn.classList.add('rec');
   let got = false;
   rec = startDictation(code, {
+    onStart: () => { toast(sl('micListening')); },
     onResult: (text) => { if (text && text.trim()) got = true; if (inp) { inp.value = text; inp.style.height = 'auto'; inp.style.height = Math.min(120, inp.scrollHeight) + 'px'; } },
     onEnd: () => { rec = null; btn.classList.remove('rec'); if (inp && inp.value.trim()) doSend(); else if (!got) toast(sl('micNoSpeech')); },
     onError: (code2) => { rec = null; btn.classList.remove('rec'); micError(code2); },

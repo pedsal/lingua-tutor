@@ -139,13 +139,19 @@ export function speakTutor(text, profile, force) {
 // ── Riconoscimento vocale (dettatura) ──
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 export function micAvailable() { return !!SR; }
-export function startDictation(code, { onResult, onEnd, onError } = {}) {
+export function startDictation(code, { onResult, onEnd, onError, onStart } = {}) {
   if (!SR) { onError && onError('unsupported'); return null; }
   const rec = new SR();
   rec.lang = LANGS[code] ? LANGS[code].bcp : 'en-US';
   rec.interimResults = true;
   rec.continuous = false;
   rec.maxAlternatives = 1;
+  // "pronto ad ascoltare": su Android c'è un ritardo tra start e ascolto reale;
+  // avvisiamo l'utente così non parla troppo presto (causa comune di "non sente").
+  let started = false;
+  const fireStart = () => { if (!started) { started = true; onStart && onStart(); } };
+  rec.onstart = fireStart;
+  rec.onaudiostart = fireStart;
   let finalText = '';
   rec.onresult = (e) => {
     let interim = '';
