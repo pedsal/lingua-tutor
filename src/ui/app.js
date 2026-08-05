@@ -56,6 +56,8 @@ const SL = {
   neuralHelp: { it: 'Più naturale e uguale su ogni dispositivo. Consuma la quota Gemini.', en: 'More natural and identical on every device. Uses Gemini quota.', ja: 'より自然で、全端末で同じ音声。Geminiの無料枠を消費します。' },
   neuralVoice: { it: 'Voce neurale', en: 'Neural voice', ja: 'ニューラル音声' },
   neuralModel: { it: 'Modello', en: 'Model', ja: 'モデル' },
+  voiceKey: { it: 'Chiave per la voce (facoltativa)', en: 'Voice key (optional)', ja: '音声用キー（任意）' },
+  voiceKeyHelp: { it: 'Se metti qui una seconda chiave Gemini di un ALTRO account/progetto Google, la voce neurale userà quella: quota separata → meno errori di limite. Vuota = usa la chiave principale.', en: 'Add a second Gemini key from a DIFFERENT Google account/project here and the neural voice will use it: separate quota → fewer rate-limit errors. Empty = use the main key.', ja: '別のGoogleアカウント/プロジェクトの2つ目のGeminiキーをここに入れると、ニューラル音声はそれを使います（quota分離→制限エラー減）。空なら主キーを使用。' },
   fbQuota: { it: 'Voce neurale al limite (troppe richieste ravvicinate): uso la voce del dispositivo.', en: 'Neural voice rate-limited (too many requests): using the device voice.', ja: 'ニューラル音声がレート制限中：端末の音声を使います。' },
   fbGeneric: { it: 'Voce neurale non disponibile ora: uso la voce del dispositivo.', en: 'Neural voice unavailable now: using the device voice.', ja: 'ニューラル音声が使えません：端末の音声を使います。' },
   voiceHelpSummary: { it: 'Come avere una voce più naturale e istantanea', en: 'How to get a more natural, instant voice', ja: 'より自然で瞬時の音声を使うには' },
@@ -625,6 +627,10 @@ function renderSettings() {
         <div class="toggle" data-act="tog-neural"><span>${sl('neuralOn')}</span><span class="sw ${c.ttsNeural ? 'on' : ''}"></span></div>
         <div class="hint" style="margin:6px 2px 0">${sl('neuralHelp')}</div>
         <div class="hint" style="margin:6px 2px 0">${sl('neuralModel')}: <code>${NEURAL_TTS_MODEL}</code></div>
+        <div class="field" style="margin-top:12px"><label>${sl('voiceKey')}</label>
+          <input type="password" id="s-key-tts" value="${esc(c.geminiKeyTTS || '')}" placeholder="AIza… / AQ.…" autocomplete="off">
+          <div class="hint">${sl('voiceKeyHelp')}</div>
+        </div>
         <div style="height:14px"></div>
         <div class="toggle" data-act="tog-micgemini"><span>${sl('micGeminiOn')}</span><span class="sw ${c.micGemini ? 'on' : ''}"></span></div>
         <div class="hint" style="margin:6px 2px 0">${sl('micGeminiHelp')}</div>
@@ -725,6 +731,7 @@ function onInput(e) {
   if (id === 'inp') { e.target.style.height = 'auto'; e.target.style.height = Math.min(120, e.target.scrollHeight) + 'px'; return; }
   if (id === 'f-name') { draft.name = e.target.value; const btn = document.querySelector('[data-act="save-profile"]'); if (btn) { const ok = draft.name.trim() && draft.target !== draft.expl; btn.disabled = !ok; btn.style.opacity = ok ? 1 : .5; } return; }
   if (id === 's-key') { S().cfg.geminiKey = e.target.value.trim(); save(); return; }
+  if (id === 's-key-tts') { S().cfg.geminiKeyTTS = e.target.value.trim(); save(); return; }
   if (id === 's-max') { S().cfg.tutorDailyMax = Math.max(0, +e.target.value || 0); save(); return; }
   if (id === 's-rate') { S().cfg.ttsRate = +e.target.value; save(); const lab = e.target.closest('.field').querySelector('label'); if (lab) lab.textContent = `${t('rate')} — ${(+e.target.value).toFixed(2)}×`; return; }
 }

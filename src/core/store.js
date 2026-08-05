@@ -24,6 +24,7 @@ function defaults(m) {
   if (!m.cfg) m.cfg = {};
   const c = m.cfg;
   if (c.geminiKey === undefined) c.geminiKey = '';         // chiave BYOK, resta su questo dispositivo
+  if (c.geminiKeyTTS === undefined) c.geminiKeyTTS = '';   // chiave dedicata alla voce neurale (quota separata)
   if (c.geminiModel === undefined) c.geminiModel = 'auto';
   if (/gemini-2/.test(c.geminiModel || '')) c.geminiModel = 'auto';   // rimuovi i vecchi modelli 2.x
   if (c.tutorLen === undefined) c.tutorLen = 'media';
@@ -140,13 +141,14 @@ export function bumpUsage() { const d = daily(); d.n++; save(); }
 // ── Backup (export / import JSON) — la chiave Gemini NON viene inclusa ──
 export function exportState() {
   const clone = JSON.parse(JSON.stringify(_m));
-  if (clone.cfg) delete clone.cfg.geminiKey;
+  if (clone.cfg) { delete clone.cfg.geminiKey; delete clone.cfg.geminiKeyTTS; }
   return JSON.stringify(clone, null, 2);
 }
 export function importState(json) {
   const data = JSON.parse(json);
-  const key = _m.cfg.geminiKey;   // conserva la chiave locale
+  const key = _m.cfg.geminiKey, keyTts = _m.cfg.geminiKeyTTS;   // conserva le chiavi locali
   _m = defaults(data);
   _m.cfg.geminiKey = key;
+  _m.cfg.geminiKeyTTS = keyTts;
   save();
 }

@@ -39,10 +39,15 @@ function wrapWav(bytes, rate) {
 export const NEURAL_TTS_MODEL = 'gemini-3.1-flash-tts-preview';
 const MODEL = NEURAL_TTS_MODEL;
 
+// Chiave per la voce: se impostata una chiave dedicata (idealmente di un ALTRO
+// progetto/account Google) la voce neurale usa quella → quota separata da chat;
+// altrimenti ripiega sulla chiave principale.
+function ttsKey() { const c = S().cfg; return (c.geminiKeyTTS || '').trim() || (c.geminiKey || '').trim(); }
+
 let _player = null;
 let _ntoken = 0;   // token: incrementando si annulla la catena in corso
 export function neuralStop() { _ntoken++; if (_player) { try { _player.pause(); } catch (e) {} _player = null; } }
-export function neuralAvailable() { return !!(S().cfg.ttsNeural && (S().cfg.geminiKey || '').trim()); }
+export function neuralAvailable() { return !!(S().cfg.ttsNeural && ttsKey()); }
 
 // Genera l'audio (throw su errore, es. 429).
 async function genAudio(text, voice, key) {
@@ -79,7 +84,7 @@ function playBlob(blob, token) {
 // l'audio si genera. Throw su errore, così il chiamante ripiega sulla voce del
 // dispositivo.
 export async function speakNeural(text) {
-  const key = (S().cfg.geminiKey || '').trim();
+  const key = ttsKey();
   if (!key) throw new Error('Manca la chiave Gemini.');
   const body = clean(text);
   if (!body) return null;
