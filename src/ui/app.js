@@ -75,6 +75,13 @@ const SL = {
   liveTabOn: { it: 'Scheda “Live” [sperimentale]', en: '“Live” tab [experimental]', ja: '「ライブ」タブ［実験的］' },
   liveTabHelp: { it: 'Aggiunge una scheda per conversare a voce in tempo reale (il modello risponde direttamente in audio, senza attese). Prototipo: non sostituisce le altre modalità.', en: 'Adds a tab for real-time spoken conversation (the model replies directly in audio, no waiting). Prototype: it doesn’t replace the other modes.', ja: 'リアルタイム音声会話のタブを追加します（モデルが直接音声で応答、待ち時間なし）。プロトタイプで、他のモードの代替ではありません。' },
   liveVoiceLabel: { it: 'Voce della conversazione live', en: 'Live conversation voice', ja: 'ライブ会話の音声' },
+  liveTeacherSummary: { it: 'Come si comporta il tutor (e istruzioni tue)', en: 'How the tutor behaves (and your instructions)', ja: '先生の振る舞い（と自分の指示）' },
+  liveT1: { it: 'Fa l’insegnante: ti ascolta e corregge subito gli errori (dice la forma giusta e ti fa ripetere), massimo 1–2 per volta.', en: 'Acts as a teacher: listens and corrects mistakes right away (says the correct form and has you repeat), max 1–2 per turn.', ja: '先生として、間違いをすぐ直します（正しい形を言って復唱させる）。1回に最大1〜2個。' },
+  liveT2: { it: 'Si adatta al tuo livello ({{L}}): non usa parole o strutture più avanzate.', en: 'Adapts to your level ({{L}}): no words or structures above it.', ja: 'あなたのレベル（{{L}}）に合わせ、それ以上の語彙や文法は使いません。' },
+  liveT3: { it: 'Usa la personalità scelta nel profilo ({{P}}) e ricorda i tuoi errori ricorrenti dal Diario.', en: 'Uses the personality set in your profile ({{P}}) and remembers your recurring mistakes from the Journal.', ja: 'プロフィールで選んだタイプ（{{P}}）で、記録にある繰り返しの間違いも覚えています。' },
+  liveCustom: { it: 'Istruzioni personalizzate (facoltative)', en: 'Custom instructions (optional)', ja: 'カスタム指示（任意）' },
+  liveCustomPh: { it: 'Es.: correggimi sempre la pronuncia; parliamo di lavoro; usa solo il presente; sii più severo…', en: 'E.g.: always correct my pronunciation; let’s talk about work; use present tense only; be stricter…', ja: '例：発音も必ず直して／仕事の話をしよう／現在形だけ使って／もっと厳しく…' },
+  liveCustomHelp: { it: 'Vengono aggiunte alle istruzioni del tutor. Si applicano alla prossima conversazione che avvii.', en: 'Added to the tutor’s instructions. They apply to the next conversation you start.', ja: '先生の指示に追加されます。次に開始する会話から有効です。' },
   voiceKey: { it: 'Chiave per la voce (facoltativa)', en: 'Voice key (optional)', ja: '音声用キー（任意）' },
   voiceKeyHelp: { it: 'Se metti qui una seconda chiave Gemini di un ALTRO account/progetto Google, la voce neurale userà quella: quota separata → meno errori di limite. Vuota = usa la chiave principale.', en: 'Add a second Gemini key from a DIFFERENT Google account/project here and the neural voice will use it: separate quota → fewer rate-limit errors. Empty = use the main key.', ja: '別のGoogleアカウント/プロジェクトの2つ目のGeminiキーをここに入れると、ニューラル音声はそれを使います（quota分離→制限エラー減）。空なら主キーを使用。' },
   fbQuota: { it: 'Voce neurale al limite (troppe richieste ravvicinate): uso la voce del dispositivo.', en: 'Neural voice rate-limited (too many requests): using the device voice.', ja: 'ニューラル音声がレート制限中：端末の音声を使います。' },
@@ -565,6 +572,17 @@ function paintLive(panel) {
                <button class="btn ghost" data-act="live-mute" style="flex:0 0 60px" aria-label="mute">${icon(live && live.muted ? 'mic' : 'volume', { size: 18 })}</button>`
             : `<button class="btn" data-act="live-start">${icon('mic', { size: 18 })} ${sl('liveStart')}</button>`}
         </div>` : `<div class="banner">${sl('liveUnsupported')}</div>`}
+      <details class="help"${st === 'live' ? '' : ' open'}><summary>${sl('liveTeacherSummary')}</summary>
+        <ul>
+          <li>${sl('liveT1')}</li>
+          <li>${sl('liveT2').replace('{{L}}', esc(levelLabel(p.level, p.target)))}</li>
+          <li>${sl('liveT3').replace('{{P}}', esc(PERSONA_LABEL[p.persona || 'friendly'][uiLang()]))}</li>
+        </ul>
+        <div class="field" style="margin-bottom:10px"><label>${sl('liveCustom')}</label>
+          <textarea id="lv-instr" rows="3" placeholder="${sl('liveCustomPh')}">${esc(S().cfg.liveInstructions || '')}</textarea>
+          <div class="hint">${sl('liveCustomHelp')}</div>
+        </div>
+      </details>
       <div class="hint">${sl('liveNote')}<br><code>${LIVE_MODEL}</code></div>
     </div>`;
   const box = document.getElementById('lv-log'); if (box) box.scrollTop = box.scrollHeight;
@@ -593,8 +611,8 @@ async function liveStart() {
   paintLiveOnly();
   try {
     await live.start();
-    // Fa aprire la conversazione al tutor (così non resta un silenzio imbarazzato).
-    live.sendText('Inizia tu: saluta brevemente e fai una domanda semplice adatta al mio livello.');
+    // Fa aprire la lezione al tutor (così non resta un silenzio imbarazzato).
+    live.sendText('Inizia tu la lezione parlata: saluta in una frase, di\' in poche parole cosa faremo adesso, e poi fai la prima domanda o fammi ripetere qualcosa — tutto adatto al mio livello.');
   } catch (e) {
     const c = String(e && e.message || e);
     live = null;
@@ -831,6 +849,7 @@ function onInput(e) {
   if (id === 'f-name') { draft.name = e.target.value; const btn = document.querySelector('[data-act="save-profile"]'); if (btn) { const ok = draft.name.trim() && draft.target !== draft.expl; btn.disabled = !ok; btn.style.opacity = ok ? 1 : .5; } return; }
   if (id === 's-key') { S().cfg.geminiKey = e.target.value.trim(); save(); return; }
   if (id === 's-key-tts') { S().cfg.geminiKeyTTS = e.target.value.trim(); save(); return; }
+  if (id === 'lv-instr') { S().cfg.liveInstructions = e.target.value; save(); return; }
   if (id === 's-max') { S().cfg.tutorDailyMax = Math.max(0, +e.target.value || 0); save(); return; }
   if (id === 's-rate') { S().cfg.ttsRate = +e.target.value; save(); const lab = e.target.closest('.field').querySelector('label'); if (lab) lab.textContent = `${t('rate')} — ${(+e.target.value).toFixed(2)}×`; return; }
 }

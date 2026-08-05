@@ -32,7 +32,7 @@ export const PERSONA_LABEL = {
   cultural: { it: 'Culturale', en: 'Cultural', ja: '文化的' },
   business: { it: 'Business', en: 'Business', ja: 'ビジネス' },
 };
-const PERSONA_PROMPT = {
+export const PERSONA_PROMPT = {
   friendly: 'Encouraging, warm, endless patience; praise the learner\'s attempts and keep it light.',
   strict: 'Precise and demanding on grammatical accuracy; give formal, detailed, rigorous corrections.',
   cultural: 'Weave in cultural notes, idioms and social context (customs and etiquette in Japan / Italy / UK / USA).',

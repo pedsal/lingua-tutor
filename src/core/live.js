@@ -10,8 +10,9 @@
 //   → setup, poi realtimeInput con audio PCM16 16kHz (microfono)
 //   ← serverContent con audio PCM16 24kHz + trascrizioni (input e output)
 // ============================================================
-import { S } from './store.js';
+import { S, getDiary } from './store.js';
 import { LANGS } from './lang.js';
+import { PERSONA_PROMPT } from './tutor.js';
 
 export const LIVE_MODEL = 'gemini-3.1-flash-live-preview';
 export const LIVE_VOICES = ['Kore', 'Puck', 'Charon', 'Zephyr', 'Aoede', 'Fenrir', 'Leda', 'Orus', 'Sulafat'];
@@ -29,24 +30,46 @@ const b64decode = (b64) => { const bin = atob(b64); const out = new Uint8Array(b
 
 // Istruzioni per il tutor in modalità vocale, calibrate sul livello (come le
 // altre modalità: ai livelli iniziali parla soprattutto nella lingua nota).
-function liveSystem(profile) {
+export function liveSystem(profile) {
   const target = LANGS[profile.target], expl = LANGS[profile.expl];
   const lvl = profile.level;
   const beginner = lvl === 'intro' || lvl === 'N5' || lvl === 'A1';
   const elementary = lvl === 'N4' || lvl === 'A2';
-  const levelText = lvl === 'intro' ? 'absolute beginner (just starting)' : (profile.target === 'ja' ? `JLPT ${lvl}` : `CEFR ${lvl}`);
+  const levelText = lvl === 'intro' ? 'absolute beginner, starting from zero' : (profile.target === 'ja' ? `JLPT ${lvl}` : `CEFR ${lvl}`);
+
+  // Quanta lingua-obiettivo usare (stessa calibrazione delle altre modalità).
   let policy;
-  if (lvl === 'intro') policy = `The student does NOT understand ${target.name.en} yet. Speak almost entirely in ${expl.native}. Introduce only a FEW ${target.name.en} words or greetings, saying each slowly and giving its meaning in ${expl.native}. Ask them to repeat, and praise attempts.`;
+  if (lvl === 'intro') policy = `The student does NOT understand ${target.name.en} yet. Speak almost entirely in ${expl.native}. Introduce only a FEW ${target.name.en} words or greetings, say each one slowly, give its meaning in ${expl.native}, and ask the student to repeat it. Never hold a conversation in ${target.name.en} at this level.`;
   else if (beginner) policy = `Speak MOSTLY in ${expl.native}. Introduce short ${target.name.en} phrases slowly, always giving the meaning in ${expl.native}. Invite the student to say very short phrases.`;
   else if (elementary) policy = `Use a balance of ${expl.native} and simple ${target.name.en}; briefly explain new words in ${expl.native}.`;
   else policy = `Speak mostly in ${target.name.en}, switching to ${expl.native} only for brief help.`;
-  return `You are a warm, patient private language tutor having a SPOKEN conversation with ${profile.name}, who is learning ${target.name.en} at level ${levelText}.
-${policy}
-Rules for speech:
-- Keep every reply SHORT (1-3 sentences): this is a live conversation, not a lecture.
-- Speak clearly and not too fast, with natural pronunciation.
-- If the student makes a mistake speaking ${target.name.en}, gently say the correct version once and let them repeat. Do not interrupt their flow with long grammar explanations.
-- Always end by asking something or inviting them to try, so the conversation continues.`;
+
+  // Errori ricorrenti dal diario: il tutor live li tiene d'occhio.
+  const diary = getDiary(profile.id) || [];
+  const errs = diary.slice(-12).map((d) => d.errors).filter((e) => e && !/^\s*nessun/i.test(e)).slice(-5);
+  const memory = errs.length ? `\n\nRECURRING MISTAKES to listen for (from past sessions): ${errs.join('; ')}. If they come up again, correct them kindly.` : '';
+
+  const custom = (S().cfg.liveInstructions || '').trim();
+  const extra = custom ? `\n\nEXTRA INSTRUCTIONS FROM THE STUDENT (follow these carefully): ${custom}` : '';
+
+  return `You are ${profile.name}'s personal LANGUAGE TEACHER, in a live spoken lesson. You are not a generic assistant: you teach, you listen, and you correct.
+Student: ${profile.name}. Learning: ${target.name.en}. Level: ${levelText}. Explanation language: ${expl.native}.
+Teaching style: ${PERSONA_PROMPT[profile.persona || 'friendly'] || PERSONA_PROMPT.friendly}
+
+HOW MUCH OF EACH LANGUAGE TO SPEAK: ${policy}
+
+HOW TO CORRECT (very important — this is your main job):
+1. Listen to what the student says in ${target.name.en}.
+2. If there is ANY mistake (grammar, wrong word, particle, verb form, word order, politeness level, or clearly wrong pronunciation), correct it IMMEDIATELY and briefly: say the correct version clearly ONCE, add a very short reason in ${expl.native} (a few words), then ask the student to repeat it.
+3. If what they said was correct and natural, say so specifically and briefly ("bravo, corretto: ...") — do not invent mistakes.
+4. Correct at most 1-2 things per turn: pick the most important. Never lecture.
+5. Adapt everything to level ${levelText}: never use words or structures above their level.
+
+HOW TO SPEAK:
+- Keep every reply SHORT (1-3 sentences). This is a conversation, not a monologue.
+- Speak clearly, at a calm pace, with correct native pronunciation.
+- When you say a word in ${target.name.en} that is new, say it slowly and give its meaning in ${expl.native}.
+- ALWAYS end your turn with a question or an invitation to try something, so the student keeps speaking. Make them talk more than you.${memory}${extra}`;
 }
 
 export class LiveSession {
