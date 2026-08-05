@@ -194,6 +194,18 @@ h1, h3 { letter-spacing: -.01em; }
 .help .hint { padding-bottom: 10px; }
 .hint code { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: 12px; }
 
+/* ── Conversazione live (prototipo) ── */
+.live .lv-badge { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--warn); background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; }
+.live .lv-status { display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 600; color: var(--text); }
+.live .lv-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--line); flex-shrink: 0; }
+.live .lv-dot.on { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); animation: pulse 1.4s infinite; }
+.live .lv-dot.wait { background: var(--warn); animation: pulse 1s infinite; }
+.live .lv-log { flex: 1; min-height: 200px; max-height: 46vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow-sm); }
+.live .lv-line { font-size: 15px; line-height: 1.5; }
+.live .lv-line .who { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
+.live .lv-line.user { color: var(--accent-ink); }
+.live .lv-line.model { color: var(--text); }
+
 /* ── Toast (avvisi non bloccanti, es. fallback voce) ── */
 .toast {
   position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px);

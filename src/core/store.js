@@ -36,6 +36,8 @@ function defaults(m) {
   if (c.ttsNeural === undefined) c.ttsNeural = false;      // voce neurale IA (Gemini TTS), opt-in
   if (c.ttsNeuralVoice === undefined) c.ttsNeuralVoice = 'Kore';
   if (c.micGemini === undefined) c.micGemini = false;      // microfono via IA Gemini (bypassa il servizio vocale di sistema)
+  if (c.liveVoice === undefined) c.liveVoice = 'Kore';     // voce della modalità Conversazione live
+  if (c.liveTab === undefined) c.liveTab = false;          // mostra la tab Live [sperimentale], opt-in
   if (c.uiLang === undefined) c.uiLang = 'it';             // lingua dell'interfaccia
   if (c.introSeen === undefined) c.introSeen = false;      // introduzione guidata già vista
   if (!Array.isArray(m.profiles)) m.profiles = [];

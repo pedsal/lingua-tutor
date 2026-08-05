@@ -14,6 +14,7 @@ import { systemFor, seedFor, lessonSeed, memoryContext, maybeDiarize, chatSchema
 import { speakTutor, speakSample, ttsStop, ttsAvailable, micAvailable, startDictation, voicesForLang, bestVoice } from '../core/tts.js';
 import { GEMINI_TTS_VOICES, NEURAL_TTS_MODEL } from '../core/neural.js';
 import { geminiMicAvailable, isRecording, startRecording, stopAndTranscribe, cancelRecording } from '../core/voice-input.js';
+import { LiveSession, liveSupported, LIVE_MODEL, LIVE_VOICES } from '../core/live.js';
 import { icon } from './icons.js';
 
 // Badge lingua (sostituisce le bandiere emoji): sigla in un chip discreto.
@@ -25,6 +26,8 @@ let busy = false;
 let rec = null;          // riconoscimento vocale attivo
 let introStep = 0;       // passo del carosello di introduzione
 let deferredPrompt = null;   // evento beforeinstallprompt (Android/Chrome)
+let live = null;         // sessione Conversazione live attiva (prototipo)
+let liveLog = [];        // trascrizione live: [{role:'user'|'model', text}]
 
 function isStandalone() {
   try { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; } catch (e) { return false; }
@@ -56,6 +59,22 @@ const SL = {
   neuralHelp: { it: 'Più naturale e uguale su ogni dispositivo. Consuma la quota Gemini.', en: 'More natural and identical on every device. Uses Gemini quota.', ja: 'より自然で、全端末で同じ音声。Geminiの無料枠を消費します。' },
   neuralVoice: { it: 'Voce neurale', en: 'Neural voice', ja: 'ニューラル音声' },
   neuralModel: { it: 'Modello', en: 'Model', ja: 'モデル' },
+  // Conversazione vocale live (prototipo)
+  liveBeta: { it: 'Prototipo sperimentale', en: 'Experimental prototype', ja: '実験的プロトタイプ' },
+  liveOff: { it: 'Non connesso', en: 'Not connected', ja: '未接続' },
+  liveConnecting: { it: 'Mi collego…', en: 'Connecting…', ja: '接続中…' },
+  liveOn: { it: 'In ascolto — parla liberamente', en: 'Listening — just speak', ja: '聞いています — どうぞ話してください' },
+  liveStart: { it: 'Inizia conversazione', en: 'Start conversation', ja: '会話を始める' },
+  liveStop: { it: 'Termina', en: 'End', ja: '終了' },
+  liveYou: { it: 'Tu', en: 'You', ja: 'あなた' },
+  liveTutor: { it: 'Tutor', en: 'Tutor', ja: '先生' },
+  liveHint: { it: 'Tocca “Inizia conversazione” e parla: il tutor ti risponde a voce, in tempo reale. Puoi anche interromperlo mentre parla.', en: 'Tap “Start conversation” and speak: the tutor answers with its voice, in real time. You can interrupt it while it speaks.', ja: '「会話を始める」をタップして話してください。先生がリアルタイムで音声で答えます。話している途中で割り込んでもOKです。' },
+  liveNote: { it: 'In questa modalità non ci sono le card di correzione delle altre schede: il tutor corregge parlando. Consuma quota Gemini.', en: 'This mode has no correction cards like the other tabs: the tutor corrects by speaking. Uses Gemini quota.', ja: 'このモードには他のタブのような訂正カードはありません（先生が話して直します）。Geminiの無料枠を消費します。' },
+  liveUnsupported: { it: 'Questo browser non supporta la conversazione live (serve un browser recente con microfono).', en: 'This browser doesn’t support live conversation (needs a recent browser with microphone).', ja: 'このブラウザはライブ会話に対応していません（マイク対応の最新ブラウザが必要）。' },
+  liveFailed: { it: 'Non riesco a collegarmi alla conversazione live. Riprova (o la quota è esaurita).', en: 'Couldn’t connect to the live conversation. Try again (or quota is used up).', ja: 'ライブ会話に接続できませんでした。再試行してください（または無料枠切れ）。' },
+  liveTabOn: { it: 'Scheda “Live” [sperimentale]', en: '“Live” tab [experimental]', ja: '「ライブ」タブ［実験的］' },
+  liveTabHelp: { it: 'Aggiunge una scheda per conversare a voce in tempo reale (il modello risponde direttamente in audio, senza attese). Prototipo: non sostituisce le altre modalità.', en: 'Adds a tab for real-time spoken conversation (the model replies directly in audio, no waiting). Prototype: it doesn’t replace the other modes.', ja: 'リアルタイム音声会話のタブを追加します（モデルが直接音声で応答、待ち時間なし）。プロトタイプで、他のモードの代替ではありません。' },
+  liveVoiceLabel: { it: 'Voce della conversazione live', en: 'Live conversation voice', ja: 'ライブ会話の音声' },
   voiceKey: { it: 'Chiave per la voce (facoltativa)', en: 'Voice key (optional)', ja: '音声用キー（任意）' },
   voiceKeyHelp: { it: 'Se metti qui una seconda chiave Gemini di un ALTRO account/progetto Google, la voce neurale userà quella: quota separata → meno errori di limite. Vuota = usa la chiave principale.', en: 'Add a second Gemini key from a DIFFERENT Google account/project here and the neural voice will use it: separate quota → fewer rate-limit errors. Empty = use the main key.', ja: '別のGoogleアカウント/プロジェクトの2つ目のGeminiキーをここに入れると、ニューラル音声はそれを使います（quota分離→制限エラー減）。空なら主キーを使用。' },
   fbQuota: { it: 'Voce neurale al limite (troppe richieste ravvicinate): uso la voce del dispositivo.', en: 'Neural voice rate-limited (too many requests): using the device voice.', ja: 'ニューラル音声がレート制限中：端末の音声を使います。' },
@@ -180,7 +199,7 @@ function applyTheme() {
   if (th === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
   else document.documentElement.removeAttribute('data-theme');
 }
-function go(route, patch = {}) { view = { ...view, route, ...patch }; cancelRecording(); ttsStop(); render(); }
+function go(route, patch = {}) { view = { ...view, route, ...patch }; cancelRecording(); liveStop(); ttsStop(); render(); }
 
 // ── Router ──
 function render() {
@@ -254,9 +273,10 @@ const NAV = {
   writing: { it: 'Scrittura', en: 'Writing', ja: '作文' },
   speech: { it: 'Pronuncia', en: 'Speaking', ja: '発音' },
   diary: { it: 'Diario', en: 'Journal', ja: '記録' },
+  live: { it: 'Live', en: 'Live', ja: 'ライブ' },
 };
 const nav = (k) => (NAV[k] && NAV[k][uiLang()]) || NAV[k].it;
-const TABS = [
+const TABS_BASE = [
   { mode: 'chat', ic: 'chat', label: () => nav('chat') },
   { mode: 'lesson', ic: 'lesson', label: () => nav('lesson') },
   { mode: 'reading', ic: 'reading', label: () => nav('reading') },
@@ -264,11 +284,14 @@ const TABS = [
   { mode: 'pronuncia', ic: 'speech', label: () => nav('speech') },
   { mode: 'diario', ic: 'diary', label: () => nav('diary') },
 ];
+// La tab Live è opt-in (prototipo): appare solo se attivata nelle Impostazioni.
+const LIVE_TAB = { mode: 'live', ic: 'volume', label: () => nav('live') };
+function tabs() { return S().cfg.liveTab ? [...TABS_BASE, LIVE_TAB] : TABS_BASE; }
 const MODE_ICON = { chat: 'chat', lesson: 'lesson', reading: 'reading' };
 const CHAT_MODES = ['chat', 'lesson', 'reading'];
 function renderMain() {
   const p = activeProfile();
-  const tabs = TABS.map((tb) => `<button class="tab ${view.mode === tb.mode ? 'on' : ''}" data-act="tab" data-mode="${tb.mode}"><span class="ti">${icon(tb.ic, { size: 22 })}</span><span class="tl">${tb.label()}</span></button>`).join('');
+  const tabsHtml = tabs().map((tb) => `<button class="tab ${view.mode === tb.mode ? 'on' : ''}" data-act="tab" data-mode="${tb.mode}"><span class="ti">${icon(tb.ic, { size: 22 })}</span><span class="tl">${tb.label()}</span></button>`).join('');
   const chip = `${langBadge(p.target)}<span class="pn">${esc(p.name)}</span><span class="pm">${langName(p.target)} · ${levelLabel(p.level, p.target)}</span>${S().profiles.length > 1 ? icon('swap', { size: 15, cls: 'sw' }) : ''}`;
   app().innerHTML =
     `<div class="topbar main">
@@ -278,7 +301,7 @@ function renderMain() {
        <button class="iconbtn" data-act="cycle-ui" title="lingua / language / 言語">${icon('globe')}</button>
        <button class="iconbtn" data-act="settings">${icon('settings')}</button>
      </div>
-     <div class="tabbar">${tabs}</div>
+     <div class="tabbar">${tabsHtml}</div>
      <div id="panel" class="panel"></div>`;
   paintPanel();
 }
@@ -288,6 +311,7 @@ function paintPanel() {
   if (view.mode === 'diario') { panel.innerHTML = diaryHtml(); return; }
   if (view.mode === 'scrittura') return paintWriting(panel);
   if (view.mode === 'pronuncia') return paintSpeech(panel);
+  if (view.mode === 'live') return paintLive(panel);
   const mode = view.mode;
   const convo = getConvo(mode);
   const actLabel = mode === 'lesson' ? t('newLesson') : mode === 'reading' ? t('newText') : t('resetChat');
@@ -519,6 +543,72 @@ async function evalSpeech(transcript) {
   } catch (e) { if (res) res.innerHTML = `<div class="banner">${esc(errMsg(e))}</div>`; return; }
   if (view.mode === 'pronuncia') paintPanel();
 }
+// ── Conversazione vocale LIVE (prototipo, tab separata) ──
+function paintLive(panel) {
+  const p = activeProfile();
+  const st = live ? live.state : 'idle';
+  const supported = liveSupported();
+  const keyBanner = configured() ? '' : `<div class="banner">${t('noKey')} <button data-act="settings">${t('settings')} →</button></div>`;
+  const dot = st === 'live' ? 'on' : (st === 'connecting' ? 'wait' : '');
+  const stateLabel = st === 'live' ? sl('liveOn') : (st === 'connecting' ? sl('liveConnecting') : sl('liveOff'));
+  const logHtml = liveLog.length
+    ? liveLog.map((l) => `<div class="lv-line ${l.role}"><span class="who">${l.role === 'user' ? sl('liveYou') : p.name ? esc(p.name) + ' · ' + sl('liveTutor') : sl('liveTutor')}</span>${esc(l.text)}</div>`).join('')
+    : `<div class="empty" style="padding:28px 10px">${sl('liveHint')}</div>`;
+  panel.innerHTML = `<div class="lab live">
+      ${keyBanner}
+      <div class="lv-badge">${icon('spark', { size: 14 })} ${sl('liveBeta')}</div>
+      <div class="lv-status"><span class="lv-dot ${dot}"></span>${stateLabel}</div>
+      <div class="lv-log" id="lv-log">${logHtml}</div>
+      ${supported ? `<div class="row">
+          ${st === 'live' || st === 'connecting'
+            ? `<button class="btn danger" data-act="live-stop">${icon('mic', { size: 18 })} ${sl('liveStop')}</button>
+               <button class="btn ghost" data-act="live-mute" style="flex:0 0 60px" aria-label="mute">${icon(live && live.muted ? 'mic' : 'volume', { size: 18 })}</button>`
+            : `<button class="btn" data-act="live-start">${icon('mic', { size: 18 })} ${sl('liveStart')}</button>`}
+        </div>` : `<div class="banner">${sl('liveUnsupported')}</div>`}
+      <div class="hint">${sl('liveNote')}<br><code>${LIVE_MODEL}</code></div>
+    </div>`;
+  const box = document.getElementById('lv-log'); if (box) box.scrollTop = box.scrollHeight;
+}
+function paintLiveOnly() { if (view.route === 'main' && view.mode === 'live') { const el = document.getElementById('panel'); if (el) paintLive(el); } }
+// Accoda il testo al turno corrente (le trascrizioni arrivano a frammenti).
+function liveAppend(role, text) {
+  if (!text) return;
+  const last = liveLog[liveLog.length - 1];
+  if (last && last.role === role) last.text += text; else liveLog.push({ role, text });
+  if (liveLog.length > 60) liveLog.splice(0, liveLog.length - 60);
+  paintLiveOnly();
+}
+async function liveStart() {
+  if (live) return;
+  if (!configured()) { toast(errMsg(new Error('MISSING_KEY'))); return; }
+  ttsStop();
+  const p = activeProfile();
+  liveLog = [];
+  live = new LiveSession(p, {
+    onState: () => paintLiveOnly(),
+    onUserText: (txt) => liveAppend('user', txt),
+    onTutorText: (txt) => liveAppend('model', txt),
+    onError: (msg) => { toast(String(msg).slice(0, 160)); },
+  });
+  paintLiveOnly();
+  try {
+    await live.start();
+    // Fa aprire la conversazione al tutor (così non resta un silenzio imbarazzato).
+    live.sendText('Inizia tu: saluta brevemente e fai una domanda semplice adatta al mio livello.');
+  } catch (e) {
+    const c = String(e && e.message || e);
+    live = null;
+    toast(c === 'MISSING_KEY' ? errMsg(new Error('MISSING_KEY')) : (/NotAllowed|Permission|denied/i.test(c) ? sl('micDenied') : sl('liveFailed')));
+    paintLiveOnly();
+  }
+}
+function liveStop() {
+  if (!live) return;
+  live.stop(); live = null;
+  paintLiveOnly();
+}
+function liveToggleMute() { if (!live) return; live.setMuted(!live.muted); paintLiveOnly(); }
+
 function busyLabel() {
   if (view.mode === 'lesson') return t('preparingLesson');
   if (view.mode === 'reading') return t('preparingText');
@@ -634,6 +724,11 @@ function renderSettings() {
         <div style="height:14px"></div>
         <div class="toggle" data-act="tog-micgemini"><span>${sl('micGeminiOn')}</span><span class="sw ${c.micGemini ? 'on' : ''}"></span></div>
         <div class="hint" style="margin:6px 2px 0">${sl('micGeminiHelp')}</div>
+        <div style="height:14px"></div>
+        <div class="toggle" data-act="tog-livetab"><span>${sl('liveTabOn')}</span><span class="sw ${c.liveTab ? 'on' : ''}"></span></div>
+        <div class="hint" style="margin:6px 2px 0">${sl('liveTabHelp')}</div>
+        ${c.liveTab ? `<div class="field" style="margin-top:12px"><label>${sl('liveVoiceLabel')}</label>
+          <select id="s-livevoice">${LIVE_VOICES.map((v) => `<option value="${v}" ${c.liveVoice === v ? 'selected' : ''}>${v}</option>`).join('')}</select></div>` : ''}
         ${c.ttsNeural ? `<div class="field" style="margin-top:12px"><label>${sl('neuralVoice')}</label>
           <div class="row"><select id="s-neuralvoice" style="flex:1">${GEMINI_TTS_VOICES.map((v) => `<option value="${v}" ${c.ttsNeuralVoice === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
           <button class="iconbtn" data-act="neural-test" aria-label="test">${icon('volume', { size: 18 })}</button></div></div>` : ''}
@@ -688,12 +783,15 @@ function onClick(e) {
     case 'install-app': return installApp();
     case 'review-intro': introStep = 0; return go('intro');
     case 'cycle-ui': { const order = ['it', 'en', 'ja']; S().cfg.uiLang = order[(order.indexOf(uiLang()) + 1) % order.length]; save(); return render(); }
-    case 'tab': { const m = b.dataset.mode; if (m === view.mode) return; diarizeCurrentIfChat(); view.mode = m; cancelRecording(); ttsStop(); return renderMain(); }
+    case 'tab': { const m = b.dataset.mode; if (m === view.mode) return; diarizeCurrentIfChat(); view.mode = m; cancelRecording(); liveStop(); ttsStop(); return renderMain(); }
     case 'switch': return cycleProfile();
     case 'send': return doSend();
     case 'mic': return toggleMic(b);
     case 'chip': return doSendText(b.dataset.text);
     case 'toggle': { const el = document.getElementById(b.dataset.tid); if (el) el.classList.toggle('hidden'); return; }
+    case 'live-start': return liveStart();
+    case 'live-stop': return liveStop();
+    case 'live-mute': return liveToggleMute();
     case 'analyze-writing': return analyzeWriting();
     case 'new-phrase': return newPhrase();
     case 'speak-phrase': { const lab = getLab(activeProfile().id, 'speech'); if (lab && lab.phrase) speakTutor(lab.phrase, activeProfile(), true); return; }
@@ -716,6 +814,7 @@ function onClick(e) {
     case 'tog-auto': S().cfg.autoSpeak = !S().cfg.autoSpeak; save(); return renderSettings();
     case 'tog-neural': S().cfg.ttsNeural = !S().cfg.ttsNeural; save(); return renderSettings();
     case 'tog-micgemini': S().cfg.micGemini = !S().cfg.micGemini; save(); return renderSettings();
+    case 'tog-livetab': S().cfg.liveTab = !S().cfg.liveTab; save(); if (!S().cfg.liveTab && view.mode === 'live') view.mode = 'chat'; return renderSettings();
     case 'voice-test': return speakSample(b.dataset.code);
     case 'neural-test': return speakTutor('こんにちは。Hello. Ciao, questa è la voce neurale.', activeProfile(), true);
     case 'clear-memory': if (confirm(sl('clearMemoryConfirm'))) { clearDiary(S().activeId); render(); } return;
@@ -740,6 +839,7 @@ function onChange(e) {
   if (id === 'f-level') { draft.level = e.target.value; return; }
   if (id === 's-model') { S().cfg.geminiModel = e.target.value; save(); return; }
   if (id === 's-neuralvoice') { S().cfg.ttsNeuralVoice = e.target.value; save(); return; }
+  if (id === 's-livevoice') { S().cfg.liveVoice = e.target.value; save(); return; }
   if (act === 'voice-sel') { const code = e.target.dataset.code; S().cfg.ttsVoices[code] = e.target.value; save(); return; }
 }
 
