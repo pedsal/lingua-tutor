@@ -4,7 +4,7 @@
 //  gratuita e la chiave resta sul dispositivo (esclusa dai backup).
 //  Adattato da Dojo_V5 (tutor.js), generalizzato per un system prompt arbitrario.
 // ============================================================
-import { S, usage, bumpUsage } from './store.js';
+import { S, usage, bumpUsage, addUsage } from './store.js';
 
 // Solo modelli moderni (3.x / latest): niente Gemini 2.5.
 export const MODELS = [
@@ -81,6 +81,7 @@ export async function ask(messages, opts = {}) {
     }
     const cand = data.candidates && data.candidates[0];
     const text = cand && cand.content && cand.content.parts ? cand.content.parts.map((p) => p.text || '').join('').trim() : '';
+    addUsage(opts.kind || 'chat', data.usageMetadata);   // token realmente consumati
     if (!opts.noCount) bumpUsage();
     if (!text) {
       const why = cand && cand.finishReason && cand.finishReason !== 'STOP' ? ` (${cand.finishReason})` : '';

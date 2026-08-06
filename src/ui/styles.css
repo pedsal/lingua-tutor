@@ -200,6 +200,23 @@ h1, h3 { letter-spacing: -.01em; }
 .help .hint { padding-bottom: 10px; }
 .hint code { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: 12px; }
 
+/* ── Barra consumo token ── */
+.usagebar {
+  display: flex; align-items: center; gap: 6px; width: 100%; justify-content: center; flex-wrap: wrap;
+  padding: 5px 12px; font-size: 11.5px; color: var(--muted); background: var(--panel2);
+  border-bottom: 1px solid var(--line);
+}
+.usagebar b { color: var(--text); font-weight: 700; }
+.usagebar .sep { opacity: .45; }
+.usagebar .ic { opacity: .7; }
+.usagebar.hot { background: rgba(201,150,46,.13); color: var(--warn); }
+.usagebar.hot b { color: var(--warn); }
+.usagegrid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.usagegrid .ub { background: var(--accent-soft); border: 1px solid var(--line); border-radius: 12px; padding: 10px 8px; text-align: center; }
+.usagegrid .ub .n { display: block; font-size: 19px; font-weight: 800; color: var(--accent-ink); line-height: 1.2; }
+.usagegrid .ub .l { display: block; font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+.usagelist { margin: 10px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+
 /* ── Conversazione live (prototipo) ── */
 .live .lv-badge { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--warn); background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; }
 .live .lv-status { display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 600; color: var(--text); }

@@ -4,7 +4,7 @@
 // ============================================================
 import { S, save, activeProfile, addProfile, updateProfile, removeProfile,
   getConvo, pushMsg, resetConvo, getDiary, clearDiary, diarizedLen, setDiarizedLen,
-  getLab, setLab, pushDiary, exportState, importState } from '../core/store.js';
+  getLab, setLab, pushDiary, usageStats, resetUsage, usage, exportState, importState } from '../core/store.js';
 import { LANGS, LANG_CODES, levelsFor, defaultLevel, levelLabel, langName, uiLang, t } from '../core/lang.js';
 import { configured, MODELS } from '../core/gemini.js';
 import { ask, askJSON } from '../core/gemini.js';
@@ -60,6 +60,22 @@ const SL = {
   neuralVoice: { it: 'Voce neurale', en: 'Neural voice', ja: 'ニューラル音声' },
   neuralModel: { it: 'Modello', en: 'Model', ja: 'モデル' },
   themeToggle: { it: 'Tema chiaro / scuro', en: 'Light / dark theme', ja: 'ライト／ダークテーマ' },
+  // Contatore token
+  usageTitle: { it: 'Consumo token', en: 'Token usage', ja: 'トークン使用量' },
+  usageTokens: { it: 'token', en: 'tokens', ja: 'トークン' },
+  usageReq: { it: 'richieste', en: 'requests', ja: 'リクエスト' },
+  usageTokensToday: { it: 'token oggi', en: 'tokens today', ja: '今日のトークン' },
+  usageReqToday: { it: 'richieste oggi', en: 'requests today', ja: '今日のリクエスト' },
+  usageResetIn: { it: 'all’azzeramento', en: 'until reset', ja: 'リセットまで' },
+  usageMinute: { it: 'Nell’ultimo minuto', en: 'In the last minute', ja: '直近1分' },
+  usageKindChat: { it: 'Chat, lezioni e correzioni', en: 'Chat, lessons & corrections', ja: 'チャット・レッスン・訂正' },
+  usageKindLive: { it: 'Conversazione live', en: 'Live conversation', ja: 'ライブ会話' },
+  usageKindTts: { it: 'Voce neurale', en: 'Neural voice', ja: 'ニューラル音声' },
+  usageKindMic: { it: 'Microfono via IA', en: 'AI microphone', ja: 'AIマイク' },
+  usageShowBar: { it: 'Mostra la barra del consumo', en: 'Show the usage bar', ja: '使用量バーを表示' },
+  usageReset: { it: 'Azzera il contatore', en: 'Reset the counter', ja: 'カウンターをリセット' },
+  usageResetConfirm: { it: 'Azzerare il contatore dei token? (non cambia la quota di Google)', en: 'Reset the token counter? (does not change Google’s quota)', ja: 'トークンカウンターをリセットしますか？（Googleの枠は変わりません）' },
+  usageNote: { it: 'Google non comunica quanti token restano: qui vedi quelli che hai consumato tu. Le quote gratuite si azzerano ogni giorno a mezzanotte ora del Pacifico.', en: 'Google doesn’t report how many tokens are left: this shows what you have used. Free quotas reset daily at midnight Pacific time.', ja: 'Googleは残量を通知しません。ここでは使用量を表示します。無料枠は毎日太平洋時間の午前0時にリセットされます。' },
   // Conversazione vocale live (prototipo)
   liveBeta: { it: 'Prototipo sperimentale', en: 'Experimental prototype', ja: '実験的プロトタイプ' },
   liveOff: { it: 'Non connesso', en: 'Not connected', ja: '未接続' },
@@ -202,7 +218,40 @@ export function boot() {
   window.addEventListener('appinstalled', () => { deferredPrompt = null; });
   // Voce neurale che ripiega sul dispositivo: avviso visibile invece del silenzio.
   window.addEventListener('lt-tts-fallback', (e) => toast(sl(e && e.detail && e.detail.quota ? 'fbQuota' : 'fbGeneric')));
+  startUsageTicker();
   render();
+}
+
+// ── Contatore token in tempo reale ──────────────────────────────────────────
+// NB: Google NON espone la quota residua via API; mostriamo quindi il consumo
+// reale (usageMetadata), il tetto di richieste impostato dall'utente e il tempo
+// che manca all'azzeramento delle quote gratuite (mezzanotte del Pacifico).
+const fmtTok = (n) => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace('.0', '') + 'k' : String(n);
+function fmtLeft(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+function usageBarHtml() {
+  if (!S().cfg.showUsage) return '';
+  const u = usageStats(), q = usage();
+  const reqTxt = q.max ? `${q.used}/${q.max}` : String(u.req);
+  const hot = u.minuteTokens > 20000 || (q.max && q.left <= 3);
+  return `<button class="usagebar ${hot ? 'hot' : ''}" data-act="usage-info" title="${sl('usageTitle')}">
+      ${icon('spark', { size: 13 })}
+      <span><b>${fmtTok(u.tokens)}</b> ${sl('usageTokens')}</span>
+      <span class="sep">·</span><span>${reqTxt} ${sl('usageReq')}</span>
+      <span class="sep">·</span><span>${icon('refresh', { size: 12 })} ${fmtLeft(u.resetMs)}</span>
+    </button>`;
+}
+function paintUsageBar() {
+  const el = document.getElementById('usagebar');
+  if (!el) return;
+  el.innerHTML = usageBarHtml();
+}
+let _usageTick = null;
+function startUsageTicker() {
+  clearInterval(_usageTick);
+  _usageTick = setInterval(() => { if (view.route === 'main') paintUsageBar(); }, 3000);
 }
 
 let _toastT = null;
@@ -322,6 +371,7 @@ function renderMain() {
        <button class="iconbtn" data-act="settings">${icon('settings')}</button>
      </div>
      <div class="tabbar">${tabsHtml}</div>
+     <div id="usagebar">${usageBarHtml()}</div>
      <div id="panel" class="panel"></div>`;
   paintPanel();
 }
@@ -767,6 +817,7 @@ async function callModel(mode, extraHidden) {
   busy = false;
   pushMsg(mode, 'model', reply, data);
   paintMsgs();
+  paintUsageBar();
   if (S().cfg.tts !== false && S().cfg.autoSpeak) speakTutor(reply, p);
 }
 
@@ -858,6 +909,26 @@ function renderSettings() {
         <div class="row"><button class="btn ghost" data-act="export">${icon('download', { size: 16 })} ${t('exportBk')}</button><button class="btn ghost" data-act="import">${icon('upload', { size: 16 })} ${t('importBk')}</button></div>
       </div>
 
+      <div class="setblock"><h3>${icon('spark', { size: 17 })} ${sl('usageTitle')}</h3>
+        ${(() => {
+          const u = usageStats(), q = usage();
+          const kinds = [['chat', sl('usageKindChat')], ['live', sl('usageKindLive')], ['tts', sl('usageKindTts')], ['mic', sl('usageKindMic')]]
+            .filter(([k]) => u.byKind[k]).map(([k, lab]) => `<li>${lab}: <b>${fmtTok(u.byKind[k])}</b></li>`).join('');
+          return `<div class="usagegrid">
+              <div class="ub"><span class="n">${fmtTok(u.tokens)}</span><span class="l">${sl('usageTokensToday')}</span></div>
+              <div class="ub"><span class="n">${q.max ? `${q.used}/${q.max}` : u.req}</span><span class="l">${sl('usageReqToday')}</span></div>
+              <div class="ub"><span class="n">${fmtLeft(u.resetMs)}</span><span class="l">${sl('usageResetIn')}</span></div>
+            </div>
+            ${kinds ? `<ul class="usagelist">${kinds}</ul>` : ''}
+            <div class="hint" style="margin-top:8px">${sl('usageMinute')}: <b>${fmtTok(u.minuteTokens)}</b> ${sl('usageTokens')} / ${u.minuteReq} ${sl('usageReq')}</div>
+            <div class="hint" style="margin-top:8px">${sl('usageNote')}</div>`;
+        })()}
+        <div style="height:12px"></div>
+        <div class="toggle" data-act="tog-usage"><span>${sl('usageShowBar')}</span><span class="sw ${c.showUsage ? 'on' : ''}"></span></div>
+        <div style="height:10px"></div>
+        <button class="btn danger" data-act="reset-usage">${icon('refresh', { size: 16 })} ${sl('usageReset')}</button>
+      </div>
+
       <div class="setblock"><h3>${icon('logo', { size: 17 })} ${sl('appSection')}</h3>
         ${isStandalone() ? `<div class="hint" style="margin-bottom:10px">${sl('installedMsg')}</div>` : `<button class="btn ghost" data-act="install-app" style="margin-bottom:10px">${icon('download', { size: 16 })} ${sl('installApp')}</button>`}
         <button class="btn ghost" data-act="review-intro">${icon('chat', { size: 16 })} ${sl('reviewIntro')}</button>
@@ -880,6 +951,9 @@ function onClick(e) {
     case 'review-intro': introStep = 0; return go('intro');
     case 'cycle-ui': { const order = ['it', 'en', 'ja']; S().cfg.uiLang = order[(order.indexOf(uiLang()) + 1) % order.length]; save(); return render(); }
     case 'cycle-theme': S().cfg.theme = isDark() ? 'light' : 'dark'; save(); applyTheme(); return render();
+    case 'usage-info': return go('settings');
+    case 'tog-usage': S().cfg.showUsage = !S().cfg.showUsage; save(); return renderSettings();
+    case 'reset-usage': if (confirm(sl('usageResetConfirm'))) { resetUsage(); renderSettings(); } return;
     case 'tab': { const m = b.dataset.mode; if (m === view.mode) return; diarizeCurrentIfChat(); view.mode = m; cancelRecording(); liveStop(); ttsStop(); return renderMain(); }
     case 'switch': return cycleProfile();
     case 'send': return doSend();

@@ -4,7 +4,7 @@
 //  rotto/mal configurato (es. alcuni Pixel: non va né in Gboard né nel browser),
 //  perché usa direttamente il microfono (getUserMedia) + i server Gemini.
 // ============================================================
-import { S } from './store.js';
+import { S, addUsage } from './store.js';
 import { apiKey } from './gemini.js';
 
 let _stream = null, _recorder = null, _chunks = [];
@@ -103,6 +103,7 @@ async function transcribe(b64, targetName) {
       throw new Error(m || ('HTTP ' + r.status));
     }
   } finally { clearTimeout(to); }
+  addUsage('mic', data.usageMetadata);
   const t = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts || [])
     .map((p) => p.text || '').join('').trim();
   return t;

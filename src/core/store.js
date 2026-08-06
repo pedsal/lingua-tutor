@@ -39,6 +39,7 @@ function defaults(m) {
   if (c.liveVoice === undefined) c.liveVoice = 'Kore';     // voce della modalità Conversazione live
   if (c.liveInstructions === undefined) c.liveInstructions = '';   // istruzioni extra per il tutor live
   if (c.liveMode === undefined) c.liveMode = 'tutor';       // 'tutor' (corregge) | 'assistant' (chiacchiera)
+  if (c.showUsage === undefined) c.showUsage = true;        // barra con i token consumati
   if (c.uiLang === undefined) c.uiLang = 'it';             // lingua dell'interfaccia
   if (c.introSeen === undefined) c.introSeen = false;      // introduzione guidata già vista
   if (!Array.isArray(m.profiles)) m.profiles = [];
@@ -128,6 +129,48 @@ export function setDiarizedLen(id, mode, n) { S().diarized[`${id}:${mode}`] = n;
 // ── Laboratori (Writing Lab / Pronuncia): ultimo risultato per profilo ──
 export function getLab(id, kind) { return (S().labs[id] || {})[kind] || null; }
 export function setLab(id, kind, val) { const l = S().labs[id] || (S().labs[id] = {}); l[kind] = val; save(); }
+
+// ── Contatore token (consumo reale, da usageMetadata delle risposte) ──
+// Le quote giornaliere gratuite di Google si azzerano a mezzanotte del Pacifico:
+// per questo il "giorno" dei token è calcolato su quel fuso.
+export function pacificDayKey(d = new Date()) {
+  try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d); }
+  catch (e) { return todayK(d); }
+}
+// Millisecondi che restano fino al prossimo azzeramento (mezzanotte del Pacifico).
+export function msToQuotaReset(now = new Date()) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(now);
+    const g = (t) => +(parts.find((p) => p.type === t) || {}).value || 0;
+    const h = g('hour') % 24, m = g('minute'), s = g('second');
+    return ((24 - h) * 3600 - m * 60 - s) * 1000;
+  } catch (e) { return 0; }
+}
+function usageBucket() {
+  const m = S(), dk = pacificDayKey();
+  if (!m.usage || m.usage.d !== dk) m.usage = { d: dk, tokens: 0, req: 0, byKind: {}, min: { t: 0, tokens: 0, req: 0 } };
+  if (!m.usage.byKind) m.usage.byKind = {};
+  if (!m.usage.min) m.usage.min = { t: 0, tokens: 0, req: 0 };
+  return m.usage;
+}
+// kind: 'chat' | 'tts' | 'live' | 'mic'. meta = usageMetadata della risposta.
+export function addUsage(kind, meta) {
+  const u = usageBucket();
+  const tot = meta ? (+meta.totalTokenCount || ((+meta.promptTokenCount || 0) + (+meta.candidatesTokenCount || 0) + (+meta.responseTokenCount || 0))) : 0;
+  const minute = Math.floor(Date.now() / 60000);
+  if (u.min.t !== minute) u.min = { t: minute, tokens: 0, req: 0 };
+  u.tokens += tot; u.req += 1;
+  u.min.tokens += tot; u.min.req += 1;
+  u.byKind[kind] = (u.byKind[kind] || 0) + tot;
+  save();
+}
+export function usageStats() {
+  const u = usageBucket();
+  const minute = Math.floor(Date.now() / 60000);
+  const min = u.min.t === minute ? u.min : { tokens: 0, req: 0 };
+  return { day: u.d, tokens: u.tokens, req: u.req, byKind: { ...u.byKind }, minuteTokens: min.tokens, minuteReq: min.req, resetMs: msToQuotaReset() };
+}
+export function resetUsage() { const m = S(); m.usage = { d: pacificDayKey(), tokens: 0, req: 0, byKind: {}, min: { t: 0, tokens: 0, req: 0 } }; save(); }
 
 // ── Contatore giornaliero ──
 function daily() {

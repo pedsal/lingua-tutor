@@ -4,7 +4,7 @@
 //  e uguale su ogni dispositivo, ma consuma la quota Gemini. In caso di errore il
 //  chiamante ripiega sulla voce del dispositivo (vedi speakTutor in tts.js).
 // ============================================================
-import { S } from './store.js';
+import { S, addUsage } from './store.js';
 
 export const GEMINI_TTS_VOICES = ['Kore', 'Puck', 'Charon', 'Zephyr', 'Aoede', 'Fenrir', 'Leda', 'Orus', 'Sulafat'];
 
@@ -61,6 +61,7 @@ async function genAudio(text, voice, key) {
     data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error((data && data.error && data.error.message) || ('Errore TTS (' + r.status + ').'));
   } finally { clearTimeout(to); }
+  addUsage('tts', data.usageMetadata);
   const part = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0];
   const inline = part && part.inlineData;
   if (!inline || !inline.data) throw new Error('Nessun audio ricevuto dal modello TTS.');

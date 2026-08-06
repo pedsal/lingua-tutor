@@ -10,7 +10,7 @@
 //   → setup, poi realtimeInput con audio PCM16 16kHz (microfono)
 //   ← serverContent con audio PCM16 24kHz + trascrizioni (input e output)
 // ============================================================
-import { S, getDiary } from './store.js';
+import { S, getDiary, addUsage } from './store.js';
 import { LANGS } from './lang.js';
 import { PERSONA_PROMPT } from './tutor.js';
 
@@ -112,6 +112,7 @@ export class LiveSession {
     this.inCtx = null; this.node = null; this.source = null;
     this.outCtx = null; this.nextAt = 0; this.sources = [];
     this.muted = false;
+    this.usedTokens = 0;   // totale già conteggiato per questa sessione (il server lo invia cumulativo)
   }
 
   setState(s) { this.state = s; this.h.onState && this.h.onState(s); }
@@ -157,6 +158,11 @@ export class LiveSession {
     else raw = new TextDecoder().decode(ev.data);
     let m; try { m = JSON.parse(raw); } catch (e) { return; }
 
+    // Il consumo arriva cumulativo: registriamo solo l'incremento.
+    if (m.usageMetadata) {
+      const tot = +m.usageMetadata.totalTokenCount || 0;
+      if (tot > this.usedTokens) { addUsage('live', { totalTokenCount: tot - this.usedTokens }); this.usedTokens = tot; }
+    }
     if (m.setupComplete) { this.startMic(); this.setState('live'); return; }
     if (m.error) { this.h.onError && this.h.onError(m.error.message || 'errore'); return; }
     const sc = m.serverContent;
