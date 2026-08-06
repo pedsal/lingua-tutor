@@ -59,6 +59,7 @@ const SL = {
   neuralHelp: { it: 'Più naturale e uguale su ogni dispositivo. Consuma la quota Gemini.', en: 'More natural and identical on every device. Uses Gemini quota.', ja: 'より自然で、全端末で同じ音声。Geminiの無料枠を消費します。' },
   neuralVoice: { it: 'Voce neurale', en: 'Neural voice', ja: 'ニューラル音声' },
   neuralModel: { it: 'Modello', en: 'Model', ja: 'モデル' },
+  themeToggle: { it: 'Tema chiaro / scuro', en: 'Light / dark theme', ja: 'ライト／ダークテーマ' },
   // Conversazione vocale live (prototipo)
   liveBeta: { it: 'Prototipo sperimentale', en: 'Experimental prototype', ja: '実験的プロトタイプ' },
   liveOff: { it: 'Non connesso', en: 'Not connected', ja: '未接続' },
@@ -213,9 +214,9 @@ function toast(msg) {
   clearTimeout(_toastT);
   _toastT = setTimeout(() => el.classList.remove('show'), 4200);
 }
+function isDark() { return (S().cfg.theme || 'light') === 'dark'; }
 function applyTheme() {
-  const th = S().cfg.theme || 'light';
-  if (th === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+  if (isDark()) document.documentElement.setAttribute('data-theme', 'dark');
   else document.documentElement.removeAttribute('data-theme');
 }
 function go(route, patch = {}) { view = { ...view, route, ...patch }; cancelRecording(); liveStop(); ttsStop(); render(); }
@@ -316,6 +317,7 @@ function renderMain() {
        <span class="logo">${icon('logo', { size: 22 })}</span>
        <button class="profilechip" data-act="switch">${chip}</button>
        <div class="spacer"></div>
+       <button class="iconbtn" data-act="cycle-theme" title="${sl('themeToggle')}">${icon(isDark() ? 'sun' : 'moon')}</button>
        <button class="iconbtn" data-act="cycle-ui" title="lingua / language / 言語">${icon('globe')}</button>
        <button class="iconbtn" data-act="settings">${icon('settings')}</button>
      </div>
@@ -877,6 +879,7 @@ function onClick(e) {
     case 'install-app': return installApp();
     case 'review-intro': introStep = 0; return go('intro');
     case 'cycle-ui': { const order = ['it', 'en', 'ja']; S().cfg.uiLang = order[(order.indexOf(uiLang()) + 1) % order.length]; save(); return render(); }
+    case 'cycle-theme': S().cfg.theme = isDark() ? 'light' : 'dark'; save(); applyTheme(); return render();
     case 'tab': { const m = b.dataset.mode; if (m === view.mode) return; diarizeCurrentIfChat(); view.mode = m; cancelRecording(); liveStop(); ttsStop(); return renderMain(); }
     case 'switch': return cycleProfile();
     case 'send': return doSend();
