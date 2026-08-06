@@ -4,13 +4,13 @@
 // ============================================================
 import { S, save, activeProfile, addProfile, updateProfile, removeProfile,
   getConvo, pushMsg, resetConvo, getDiary, clearDiary, diarizedLen, setDiarizedLen,
-  getLab, setLab, exportState, importState } from '../core/store.js';
+  getLab, setLab, pushDiary, exportState, importState } from '../core/store.js';
 import { LANGS, LANG_CODES, levelsFor, defaultLevel, levelLabel, langName, uiLang, t } from '../core/lang.js';
 import { configured, MODELS } from '../core/gemini.js';
 import { ask, askJSON } from '../core/gemini.js';
 import { systemFor, seedFor, lessonSeed, memoryContext, maybeDiarize, chatSchema,
   writingSystem, writingSchema, speechSystem, speechSchema, speechPhraseSeed,
-  PERSONAS, PERSONA_LABEL } from '../core/tutor.js';
+  liveSummarySystem, liveSummarySchema, PERSONAS, PERSONA_LABEL } from '../core/tutor.js';
 import { speakTutor, speakSample, ttsStop, ttsAvailable, micAvailable, startDictation, voicesForLang, bestVoice } from '../core/tts.js';
 import { GEMINI_TTS_VOICES, NEURAL_TTS_MODEL } from '../core/neural.js';
 import { geminiMicAvailable, isRecording, startRecording, stopAndTranscribe, cancelRecording } from '../core/voice-input.js';
@@ -74,6 +74,19 @@ const SL = {
   liveFailed: { it: 'Non riesco a collegarmi alla conversazione live. Riprova (o la quota è esaurita).', en: 'Couldn’t connect to the live conversation. Try again (or quota is used up).', ja: 'ライブ会話に接続できませんでした。再試行してください（または無料枠切れ）。' },
   liveVoiceLabel: { it: 'Voce della conversazione live', en: 'Live conversation voice', ja: 'ライブ会話の音声' },
   liveVoiceHelp: { it: 'Voce usata nella scheda Live (conversazione a voce in tempo reale).', en: 'Voice used in the Live tab (real-time spoken conversation).', ja: 'ライブタブ（リアルタイム音声会話）で使う声。' },
+  liveModeTutor: { it: 'Tutor', en: 'Tutor', ja: '先生' },
+  liveModeAssistant: { it: 'Chiacchierata', en: 'Chat', ja: 'おしゃべり' },
+  liveModeTutorHelp: { it: 'Fa l’insegnante: ti corregge subito e ti fa ripetere.', en: 'Acts as a teacher: corrects you right away and has you repeat.', ja: '先生として、すぐ直して復唱させます。' },
+  liveModeAssistantHelp: { it: 'Chiacchiera con te senza correggere: conversazione libera e scorrevole.', en: 'Just chats with you without correcting: free, flowing conversation.', ja: '訂正せずに自由に会話します。' },
+  liveVoiceShort: { it: 'Voce', en: 'Voice', ja: '音声' },
+  liveRestart: { it: 'Nuova conversazione', en: 'New conversation', ja: '新しい会話' },
+  liveLast: { it: 'Ultima volta:', en: 'Last time:', ja: '前回：' },
+  liveNext: { it: 'Prossimo passo:', en: 'Next step:', ja: '次のステップ：' },
+  liveSummarizing: { it: 'Preparo il riassunto della conversazione…', en: 'Preparing the conversation summary…', ja: '会話のまとめを作成中…' },
+  liveSummaryTitle: { it: 'Riassunto della conversazione', en: 'Conversation summary', ja: '会話のまとめ' },
+  liveNoErrors: { it: 'Nessun errore rilevante: bravo! 🎉', en: 'No significant mistakes — well done!', ja: '大きな間違いはありません。よくできました！' },
+  liveSessionTopic: { it: 'Conversazione a voce', en: 'Spoken conversation', ja: '音声会話' },
+  liveT1b: { it: 'Chiacchiera liberamente con te, senza correggerti (modalità Chiacchierata).', en: 'Chats freely with you, without correcting (Chat mode).', ja: '訂正せずに自由に会話します（おしゃべりモード）。' },
   liveTeacherSummary: { it: 'Come si comporta il tutor (e istruzioni tue)', en: 'How the tutor behaves (and your instructions)', ja: '先生の振る舞い（と自分の指示）' },
   liveT1: { it: 'Fa l’insegnante: ti ascolta e corregge subito gli errori (dice la forma giusta e ti fa ripetere), massimo 1–2 per volta.', en: 'Acts as a teacher: listens and corrects mistakes right away (says the correct form and has you repeat), max 1–2 per turn.', ja: '先生として、間違いをすぐ直します（正しい形を言って復唱させる）。1回に最大1〜2個。' },
   liveT2: { it: 'Si adatta al tuo livello ({{L}}): non usa parole o strutture più avanzate.', en: 'Adapts to your level ({{L}}): no words or structures above it.', ja: 'あなたのレベル（{{L}}）に合わせ、それ以上の語彙や文法は使いません。' },
@@ -551,39 +564,78 @@ async function evalSpeech(transcript) {
 // ── Conversazione vocale LIVE (prototipo, tab separata) ──
 function paintLive(panel) {
   const p = activeProfile();
+  const c = S().cfg;
   const st = live ? live.state : 'idle';
+  const running = st === 'live' || st === 'connecting';
   const supported = liveSupported();
   const keyBanner = configured() ? '' : `<div class="banner">${t('noKey')} <button data-act="settings">${t('settings')} →</button></div>`;
   const dot = st === 'live' ? 'on' : (st === 'connecting' ? 'wait' : '');
   const stateLabel = st === 'live' ? sl('liveOn') : (st === 'connecting' ? sl('liveConnecting') : sl('liveOff'));
   const logHtml = liveLog.length
-    ? liveLog.map((l) => `<div class="lv-line ${l.role}"><span class="who">${l.role === 'user' ? sl('liveYou') : p.name ? esc(p.name) + ' · ' + sl('liveTutor') : sl('liveTutor')}</span>${esc(l.text)}</div>`).join('')
-    : `<div class="empty" style="padding:28px 10px">${sl('liveHint')}</div>`;
+    ? liveLog.map((l) => `<div class="lv-line ${l.role}"><span class="who">${l.role === 'user' ? sl('liveYou') : sl('liveTutor')}</span>${esc(l.text)}</div>`).join('')
+    : `<div class="empty" style="padding:24px 10px">${sl('liveHint')}</div>`;
+  // Ripresa: ultima sessione live salvata nel Diario.
+  const lastLive = getDiary(p.id).filter((d) => d.mode === 'live').slice(-1)[0];
+  const resume = lastLive && !liveLog.length
+    ? `<div class="lv-resume">${icon('diary', { size: 15 })} <span><b>${sl('liveLast')}</b> ${esc(lastLive.topic || '—')}${lastLive.next ? ` · ${sl('liveNext')} ${esc(lastLive.next)}` : ''}</span></div>` : '';
+  // Controlli (modalità, voce, personalità) — disabilitati durante la conversazione.
+  const dis = running ? 'disabled' : '';
+  const controls = `<div class="lv-ctrls ${running ? 'off' : ''}">
+      <div class="seg">
+        <button data-act="live-mode" data-v="tutor" class="${(c.liveMode || 'tutor') === 'tutor' ? 'on' : ''}" ${dis}>${icon('lesson', { size: 15 })} ${sl('liveModeTutor')}</button>
+        <button data-act="live-mode" data-v="assistant" class="${c.liveMode === 'assistant' ? 'on' : ''}" ${dis}>${icon('chat', { size: 15 })} ${sl('liveModeAssistant')}</button>
+      </div>
+      <div class="row">
+        <div class="field" style="flex:1"><label>${sl('liveVoiceShort')}</label>
+          <select id="lv-voice" ${dis}>${LIVE_VOICES.map((v) => `<option value="${v}" ${c.liveVoice === v ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+        <div class="field" style="flex:1"><label>${sl('persona')}</label>
+          <select id="lv-persona" ${dis}>${PERSONAS.map((k) => `<option value="${k}" ${(p.persona || 'friendly') === k ? 'selected' : ''}>${PERSONA_LABEL[k][uiLang()]}</option>`).join('')}</select></div>
+      </div>
+      <div class="hint">${(c.liveMode || 'tutor') === 'tutor' ? sl('liveModeTutorHelp') : sl('liveModeAssistantHelp')}</div>
+    </div>`;
   panel.innerHTML = `<div class="lab live">
       ${keyBanner}
       <div class="lv-badge">${icon('spark', { size: 14 })} ${sl('liveBeta')}</div>
+      ${controls}
       <div class="lv-status"><span class="lv-dot ${dot}"></span>${stateLabel}</div>
+      ${resume}
       <div class="lv-log" id="lv-log">${logHtml}</div>
       ${supported ? `<div class="row">
-          ${st === 'live' || st === 'connecting'
+          ${running
             ? `<button class="btn danger" data-act="live-stop">${icon('mic', { size: 18 })} ${sl('liveStop')}</button>
                <button class="btn ghost" data-act="live-mute" style="flex:0 0 60px" aria-label="mute">${icon(live && live.muted ? 'mic' : 'volume', { size: 18 })}</button>`
-            : `<button class="btn" data-act="live-start">${icon('mic', { size: 18 })} ${sl('liveStart')}</button>`}
+            : `<button class="btn" data-act="live-start">${icon('mic', { size: 18 })} ${liveLog.length ? sl('liveRestart') : sl('liveStart')}</button>`}
         </div>` : `<div class="banner">${sl('liveUnsupported')}</div>`}
-      <details class="help"${st === 'live' ? '' : ' open'}><summary>${sl('liveTeacherSummary')}</summary>
+      <div id="lv-summary">${liveSummaryHtml()}</div>
+      <details class="help"><summary>${sl('liveTeacherSummary')}</summary>
         <ul>
-          <li>${sl('liveT1')}</li>
+          <li>${(c.liveMode || 'tutor') === 'tutor' ? sl('liveT1') : sl('liveT1b')}</li>
           <li>${sl('liveT2').replace('{{L}}', esc(levelLabel(p.level, p.target)))}</li>
           <li>${sl('liveT3').replace('{{P}}', esc(PERSONA_LABEL[p.persona || 'friendly'][uiLang()]))}</li>
         </ul>
         <div class="field" style="margin-bottom:10px"><label>${sl('liveCustom')}</label>
-          <textarea id="lv-instr" rows="3" placeholder="${sl('liveCustomPh')}">${esc(S().cfg.liveInstructions || '')}</textarea>
+          <textarea id="lv-instr" rows="3" placeholder="${sl('liveCustomPh')}">${esc(c.liveInstructions || '')}</textarea>
           <div class="hint">${sl('liveCustomHelp')}</div>
         </div>
       </details>
       <div class="hint">${sl('liveNote')}<br><code>${LIVE_MODEL}</code></div>
     </div>`;
   const box = document.getElementById('lv-log'); if (box) box.scrollTop = box.scrollHeight;
+}
+// Riassunto di fine conversazione (errori da rivedere + cosa fare la prossima volta).
+let liveSummary = null;      // { pending:true } | oggetto risultato | null
+function liveSummaryHtml() {
+  if (!liveSummary) return '';
+  if (liveSummary.pending) return `<div class="typing">${sl('liveSummarizing')} <span class="dots"><span>·</span><span>·</span><span>·</span></span></div>`;
+  if (liveSummary.error) return `<div class="banner">${esc(liveSummary.error)}</div>`;
+  const r = liveSummary;
+  const corr = (r.corrections && r.corrections.length) ? renderCorrections(r.corrections) : `<div class="hint">${sl('liveNoErrors')}</div>`;
+  return `<div class="lab-sec"><h4>${sl('liveSummaryTitle')}</h4>
+      ${r.summary ? `<div style="margin-bottom:8px">${esc(r.summary)}</div>` : ''}
+      ${r.praise ? `<div class="feedback" style="margin-bottom:10px">${icon('check', { size: 14 })} ${esc(r.praise)}</div>` : ''}
+      ${corr}
+      ${r.next ? `<div class="hint" style="margin-top:10px"><b>${sl('liveNext')}</b> ${esc(r.next)}</div>` : ''}
+    </div>`;
 }
 function paintLiveOnly() { if (view.route === 'main' && view.mode === 'live') { const el = document.getElementById('panel'); if (el) paintLive(el); } }
 // Accoda il testo al turno corrente (le trascrizioni arrivano a frammenti).
@@ -599,7 +651,7 @@ async function liveStart() {
   if (!configured()) { toast(errMsg(new Error('MISSING_KEY'))); return; }
   ttsStop();
   const p = activeProfile();
-  liveLog = [];
+  liveLog = []; liveSummary = null;
   live = new LiveSession(p, {
     onState: () => paintLiveOnly(),
     onUserText: (txt) => liveAppend('user', txt),
@@ -620,7 +672,33 @@ async function liveStart() {
 }
 function liveStop() {
   if (!live) return;
+  const p = activeProfile();
+  const log = liveLog.slice();
   live.stop(); live = null;
+  paintLiveOnly();
+  // Alla fine: riassunto degli errori + salvataggio nel Diario (memoria del tutor).
+  if (p && log.length >= 3 && configured()) liveWrapUp(p, log);
+}
+// Chiude la sessione: chiede all'IA il riassunto (errori + prossimo passo) e lo
+// registra nel Diario, così la volta dopo il tutor riprende da dove eravate.
+async function liveWrapUp(profile, log) {
+  liveSummary = { pending: true };
+  paintLiveOnly();
+  const transcript = log.slice(-40).map((l) => `${l.role === 'user' ? 'STUDENT' : 'TUTOR'}: ${l.text}`).join('\n').slice(0, 7000);
+  let r = null;
+  try {
+    r = await askJSON([{ role: 'user', text: transcript }], { system: liveSummarySystem(profile), schema: liveSummarySchema, len: 'lunga', noCount: true, temperature: 0.2 });
+  } catch (e) { liveSummary = { error: errMsg(e) }; paintLiveOnly(); return; }
+  liveSummary = r;
+  // Nel Diario: argomento, errori sintetici e cosa fare la prossima volta.
+  const errs = (r.corrections || []).map((c) => `${c.original} → ${c.corrected}`).slice(0, 5).join('; ');
+  pushDiary(profile.id, {
+    mode: 'live',
+    topic: (r.summary || '').split(/[.!?]/)[0].slice(0, 70) || sl('liveSessionTopic'),
+    errors: errs || 'nessuno',
+    summary: r.summary || '',
+    next: r.next || '',
+  });
   paintLiveOnly();
 }
 function liveToggleMute() { if (!live) return; live.setMuted(!live.muted); paintLiveOnly(); }
@@ -805,6 +883,7 @@ function onClick(e) {
     case 'mic': return toggleMic(b);
     case 'chip': return doSendText(b.dataset.text);
     case 'toggle': { const el = document.getElementById(b.dataset.tid); if (el) el.classList.toggle('hidden'); return; }
+    case 'live-mode': S().cfg.liveMode = v; save(); return paintLiveOnly();
     case 'live-start': return liveStart();
     case 'live-stop': return liveStop();
     case 'live-mute': return liveToggleMute();
@@ -855,7 +934,8 @@ function onChange(e) {
   if (id === 'f-level') { draft.level = e.target.value; return; }
   if (id === 's-model') { S().cfg.geminiModel = e.target.value; save(); return; }
   if (id === 's-neuralvoice') { S().cfg.ttsNeuralVoice = e.target.value; save(); return; }
-  if (id === 's-livevoice') { S().cfg.liveVoice = e.target.value; save(); return; }
+  if (id === 's-livevoice' || id === 'lv-voice') { S().cfg.liveVoice = e.target.value; save(); return; }
+  if (id === 'lv-persona') { const p = activeProfile(); if (p) updateProfile(p.id, { persona: e.target.value }); paintLiveOnly(); return; }
   if (act === 'voice-sel') { const code = e.target.dataset.code; S().cfg.ttsVoices[code] = e.target.value; save(); return; }
 }
 

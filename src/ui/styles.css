@@ -200,7 +200,13 @@ h1, h3 { letter-spacing: -.01em; }
 .live .lv-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--line); flex-shrink: 0; }
 .live .lv-dot.on { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); animation: pulse 1.4s infinite; }
 .live .lv-dot.wait { background: var(--warn); animation: pulse 1s infinite; }
-.live .lv-log { flex: 1; min-height: 200px; max-height: 46vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow-sm); }
+.live .lv-ctrls { display: grid; gap: 10px; }
+.live .lv-ctrls.off { opacity: .55; pointer-events: none; }
+.live .lv-ctrls .field label { margin-bottom: 4px; }
+.live .lv-ctrls .field select { padding: 10px 12px; }
+.live .lv-resume { display: flex; align-items: flex-start; gap: 8px; background: var(--accent-soft); border: 1px solid var(--line); border-radius: 12px; padding: 10px 13px; font-size: 13.5px; line-height: 1.45; }
+.live .lv-resume .ic { color: var(--accent-ink); flex-shrink: 0; margin-top: 2px; }
+.live .lv-log { flex: 1; min-height: 170px; max-height: 40vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow-sm); }
 .live .lv-line { font-size: 15px; line-height: 1.5; }
 .live .lv-line .who { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
 .live .lv-line.user { color: var(--accent-ink); }

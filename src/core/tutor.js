@@ -192,6 +192,27 @@ export const speechSchema = {
   required: ['accuracyScore', 'fluencyScore', 'feedback', 'phoneticGuide'],
 };
 
+// ── Riassunto di fine conversazione LIVE: cosa avete fatto + errori da rivedere ──
+export function liveSummarySystem(profile) {
+  const m = meta(profile);
+  return `You review a LIVE SPOKEN lesson between a tutor and the student ${m.name}, who is learning ${m.targetEn} (level ${m.levelText}). You will receive the transcript (STUDENT / TUTOR lines; it may contain speech-recognition inaccuracies — ignore obvious mis-hearings).
+Return STRUCTURED JSON, all prose written in ${m.explNative}:
+- "summary": 1-2 sentences on what was practised and how ${m.name} did.
+- "corrections": the student's REAL mistakes in ${m.targetEn} during this conversation (max 6, most useful first). For each: "original" (what they said), "corrected", "explanation" (short, in ${m.explNative}), "category" (one of grammar, vocabulary, politeness_register, kanji_spelling, pronunciation, word_order). Empty array if they made none — never invent mistakes.
+- "praise": ONE short specific compliment in ${m.explNative} (max 15 words). Do NOT put suggestions here.
+- "next": ONE short sentence in ${m.explNative} (max 15 words) with what to practise next time. This field is separate from "praise" and must always be filled.`;
+}
+export const liveSummarySchema = {
+  type: 'OBJECT',
+  properties: {
+    summary: { type: 'STRING' }, praise: { type: 'STRING' }, next: { type: 'STRING' },
+    corrections: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
+      original: { type: 'STRING' }, corrected: { type: 'STRING' }, explanation: { type: 'STRING' }, category: { type: 'STRING' },
+    }, required: ['original', 'corrected', 'explanation'] } },
+  },
+  required: ['summary', 'corrections', 'praise', 'next'],
+};
+
 // Genera una frase-bersaglio per l'esercizio di pronuncia (testo semplice, non JSON).
 export function speechPhraseSeed(profile) {
   const m = meta(profile);
@@ -213,7 +234,7 @@ export function seedFor(profile, mode) {
 
 // ── Diario del tutor: riassume una conversazione (qualsiasi modalità) per la
 //    memoria di lungo periodo. Chiamata INTERNA (noCount): non intacca il tetto. ──
-const MODE_LABEL = { lesson: 'guided lesson', reading: 'reading-practice session', chat: 'free conversation' };
+const MODE_LABEL = { lesson: 'guided lesson', reading: 'reading-practice session', chat: 'free conversation', live: 'live spoken conversation' };
 export async function maybeDiarize(profile, mode, convoArg) {
   const convo = convoArg || getConvo(mode);
   if (!convo || convo.length < 3) return;

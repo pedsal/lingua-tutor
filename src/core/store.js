@@ -38,6 +38,7 @@ function defaults(m) {
   if (c.micGemini === undefined) c.micGemini = false;      // microfono via IA Gemini (bypassa il servizio vocale di sistema)
   if (c.liveVoice === undefined) c.liveVoice = 'Kore';     // voce della modalità Conversazione live
   if (c.liveInstructions === undefined) c.liveInstructions = '';   // istruzioni extra per il tutor live
+  if (c.liveMode === undefined) c.liveMode = 'tutor';       // 'tutor' (corregge) | 'assistant' (chiacchiera)
   if (c.uiLang === undefined) c.uiLang = 'it';             // lingua dell'interfaccia
   if (c.introSeen === undefined) c.introSeen = false;      // introduzione guidata già vista
   if (!Array.isArray(m.profiles)) m.profiles = [];

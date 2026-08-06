@@ -44,13 +44,43 @@ export function liveSystem(profile) {
   else if (elementary) policy = `Use a balance of ${expl.native} and simple ${target.name.en}; briefly explain new words in ${expl.native}.`;
   else policy = `Speak mostly in ${target.name.en}, switching to ${expl.native} only for brief help.`;
 
-  // Errori ricorrenti dal diario: il tutor live li tiene d'occhio.
+  // ── Memoria: sessioni precedenti + errori ricorrenti (così riprende da dove
+  //    avete interrotto invece di ricominciare da zero ogni volta) ──
   const diary = getDiary(profile.id) || [];
+  const lastLive = diary.filter((d) => d.mode === 'live').slice(-3);
+  const recent = diary.slice(-5);
   const errs = diary.slice(-12).map((d) => d.errors).filter((e) => e && !/^\s*nessun/i.test(e)).slice(-5);
-  const memory = errs.length ? `\n\nRECURRING MISTAKES to listen for (from past sessions): ${errs.join('; ')}. If they come up again, correct them kindly.` : '';
+  let memory = '';
+  if (recent.length) {
+    memory += `\n\nMEMORY — what you already did with ${profile.name} (do NOT start from scratch, build on this and avoid repeating):\n`
+      + recent.map((d) => `- ${d.date}: ${d.topic}${d.summary ? ' — ' + d.summary : ''}`).join('\n');
+  }
+  if (lastLive.length) {
+    const l = lastLive[lastLive.length - 1];
+    memory += `\n\nYour LAST spoken conversation was about "${l.topic}"${l.next ? ` and you planned to practise next: ${l.next}` : ''}. At the start, briefly recall it in one short sentence and CONTINUE from there.`;
+  }
+  if (errs.length) memory += `\n\nRECURRING MISTAKES to listen for: ${errs.join('; ')}. If they come up again, correct them kindly.`;
 
   const custom = (S().cfg.liveInstructions || '').trim();
   const extra = custom ? `\n\nEXTRA INSTRUCTIONS FROM THE STUDENT (follow these carefully): ${custom}` : '';
+
+  // ── Modalità: assistente che chiacchiera, oppure tutor che corregge ──
+  if ((S().cfg.liveMode || 'tutor') === 'assistant') {
+    return `You are a friendly, easy-going conversation partner speaking live with ${profile.name}, who is learning ${target.name.en} (level ${levelText}). Explanation language: ${expl.native}.
+Personality: ${PERSONA_PROMPT[profile.persona || 'friendly'] || PERSONA_PROMPT.friendly}
+
+HOW MUCH OF EACH LANGUAGE TO SPEAK: ${policy}
+
+YOUR ROLE — just talk with them, do NOT act as a teacher:
+- Have a relaxed, natural chat: react to what they say, share small opinions, ask about their day, interests, plans.
+- Do NOT correct their mistakes and do NOT give grammar explanations, unless they explicitly ask. Let the conversation flow.
+- If you truly don't understand them, just ask them to repeat in a friendly way.
+
+HOW TO SPEAK:
+- Keep every reply SHORT (1-3 sentences), like a real conversation.
+- Speak clearly, at a calm pace, with correct native pronunciation.
+- Always end with a question, so the conversation keeps going and they talk more than you.${memory}${extra}`;
+  }
 
   return `You are ${profile.name}'s personal LANGUAGE TEACHER, in a live spoken lesson. You are not a generic assistant: you teach, you listen, and you correct.
 Student: ${profile.name}. Learning: ${target.name.en}. Level: ${levelText}. Explanation language: ${expl.native}.

@@ -2,7 +2,7 @@
 // Strategia network-first con fallback alla cache: l'app resta aggiornata quando
 // c'è rete, ma funziona anche offline una volta visitata (le chiamate al tutor
 // richiedono comunque internet).
-const CACHE = 'lingua-tutor-v15';
+const CACHE = 'lingua-tutor-v16';
 
 self.addEventListener('install', () => self.skipWaiting());
 
