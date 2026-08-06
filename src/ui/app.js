@@ -21,7 +21,7 @@ import { icon } from './icons.js';
 function langBadge(code) { return `<span class="lbadge">${LANGS[code] ? code.toUpperCase() : '?'}</span>`; }
 
 const app = () => document.getElementById('app');
-let view = { route: 'main', mode: 'chat', editId: null };
+let view = { route: 'main', mode: 'live', editId: null };   // 'live' = modalità principale
 let busy = false;
 let rec = null;          // riconoscimento vocale attivo
 let introStep = 0;       // passo del carosello di introduzione
@@ -72,9 +72,8 @@ const SL = {
   liveNote: { it: 'In questa modalità non ci sono le card di correzione delle altre schede: il tutor corregge parlando. Consuma quota Gemini.', en: 'This mode has no correction cards like the other tabs: the tutor corrects by speaking. Uses Gemini quota.', ja: 'このモードには他のタブのような訂正カードはありません（先生が話して直します）。Geminiの無料枠を消費します。' },
   liveUnsupported: { it: 'Questo browser non supporta la conversazione live (serve un browser recente con microfono).', en: 'This browser doesn’t support live conversation (needs a recent browser with microphone).', ja: 'このブラウザはライブ会話に対応していません（マイク対応の最新ブラウザが必要）。' },
   liveFailed: { it: 'Non riesco a collegarmi alla conversazione live. Riprova (o la quota è esaurita).', en: 'Couldn’t connect to the live conversation. Try again (or quota is used up).', ja: 'ライブ会話に接続できませんでした。再試行してください（または無料枠切れ）。' },
-  liveTabOn: { it: 'Scheda “Live” [sperimentale]', en: '“Live” tab [experimental]', ja: '「ライブ」タブ［実験的］' },
-  liveTabHelp: { it: 'Aggiunge una scheda per conversare a voce in tempo reale (il modello risponde direttamente in audio, senza attese). Prototipo: non sostituisce le altre modalità.', en: 'Adds a tab for real-time spoken conversation (the model replies directly in audio, no waiting). Prototype: it doesn’t replace the other modes.', ja: 'リアルタイム音声会話のタブを追加します（モデルが直接音声で応答、待ち時間なし）。プロトタイプで、他のモードの代替ではありません。' },
   liveVoiceLabel: { it: 'Voce della conversazione live', en: 'Live conversation voice', ja: 'ライブ会話の音声' },
+  liveVoiceHelp: { it: 'Voce usata nella scheda Live (conversazione a voce in tempo reale).', en: 'Voice used in the Live tab (real-time spoken conversation).', ja: 'ライブタブ（リアルタイム音声会話）で使う声。' },
   liveTeacherSummary: { it: 'Come si comporta il tutor (e istruzioni tue)', en: 'How the tutor behaves (and your instructions)', ja: '先生の振る舞い（と自分の指示）' },
   liveT1: { it: 'Fa l’insegnante: ti ascolta e corregge subito gli errori (dice la forma giusta e ti fa ripetere), massimo 1–2 per volta.', en: 'Acts as a teacher: listens and corrects mistakes right away (says the correct form and has you repeat), max 1–2 per turn.', ja: '先生として、間違いをすぐ直します（正しい形を言って復唱させる）。1回に最大1〜2個。' },
   liveT2: { it: 'Si adatta al tuo livello ({{L}}): non usa parole o strutture più avanzate.', en: 'Adapts to your level ({{L}}): no words or structures above it.', ja: 'あなたのレベル（{{L}}）に合わせ、それ以上の語彙や文法は使いません。' },
@@ -283,7 +282,9 @@ const NAV = {
   live: { it: 'Live', en: 'Live', ja: 'ライブ' },
 };
 const nav = (k) => (NAV[k] && NAV[k][uiLang()]) || NAV[k].it;
-const TABS_BASE = [
+// La conversazione live è la modalità PRINCIPALE (prima scheda, sempre presente).
+const TABS = [
+  { mode: 'live', ic: 'volume', label: () => nav('live') },
   { mode: 'chat', ic: 'chat', label: () => nav('chat') },
   { mode: 'lesson', ic: 'lesson', label: () => nav('lesson') },
   { mode: 'reading', ic: 'reading', label: () => nav('reading') },
@@ -291,14 +292,11 @@ const TABS_BASE = [
   { mode: 'pronuncia', ic: 'speech', label: () => nav('speech') },
   { mode: 'diario', ic: 'diary', label: () => nav('diary') },
 ];
-// La tab Live è opt-in (prototipo): appare solo se attivata nelle Impostazioni.
-const LIVE_TAB = { mode: 'live', ic: 'volume', label: () => nav('live') };
-function tabs() { return S().cfg.liveTab ? [...TABS_BASE, LIVE_TAB] : TABS_BASE; }
 const MODE_ICON = { chat: 'chat', lesson: 'lesson', reading: 'reading' };
 const CHAT_MODES = ['chat', 'lesson', 'reading'];
 function renderMain() {
   const p = activeProfile();
-  const tabsHtml = tabs().map((tb) => `<button class="tab ${view.mode === tb.mode ? 'on' : ''}" data-act="tab" data-mode="${tb.mode}"><span class="ti">${icon(tb.ic, { size: 22 })}</span><span class="tl">${tb.label()}</span></button>`).join('');
+  const tabsHtml = TABS.map((tb) => `<button class="tab ${view.mode === tb.mode ? 'on' : ''}" data-act="tab" data-mode="${tb.mode}"><span class="ti">${icon(tb.ic, { size: 22 })}</span><span class="tl">${tb.label()}</span></button>`).join('');
   const chip = `${langBadge(p.target)}<span class="pn">${esc(p.name)}</span><span class="pm">${langName(p.target)} · ${levelLabel(p.level, p.target)}</span>${S().profiles.length > 1 ? icon('swap', { size: 15, cls: 'sw' }) : ''}`;
   app().innerHTML =
     `<div class="topbar main">
@@ -743,10 +741,10 @@ function renderSettings() {
         <div class="toggle" data-act="tog-micgemini"><span>${sl('micGeminiOn')}</span><span class="sw ${c.micGemini ? 'on' : ''}"></span></div>
         <div class="hint" style="margin:6px 2px 0">${sl('micGeminiHelp')}</div>
         <div style="height:14px"></div>
-        <div class="toggle" data-act="tog-livetab"><span>${sl('liveTabOn')}</span><span class="sw ${c.liveTab ? 'on' : ''}"></span></div>
-        <div class="hint" style="margin:6px 2px 0">${sl('liveTabHelp')}</div>
-        ${c.liveTab ? `<div class="field" style="margin-top:12px"><label>${sl('liveVoiceLabel')}</label>
-          <select id="s-livevoice">${LIVE_VOICES.map((v) => `<option value="${v}" ${c.liveVoice === v ? 'selected' : ''}>${v}</option>`).join('')}</select></div>` : ''}
+        <div class="field"><label>${sl('liveVoiceLabel')}</label>
+          <select id="s-livevoice">${LIVE_VOICES.map((v) => `<option value="${v}" ${c.liveVoice === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
+          <div class="hint">${sl('liveVoiceHelp')}</div>
+        </div>
         ${c.ttsNeural ? `<div class="field" style="margin-top:12px"><label>${sl('neuralVoice')}</label>
           <div class="row"><select id="s-neuralvoice" style="flex:1">${GEMINI_TTS_VOICES.map((v) => `<option value="${v}" ${c.ttsNeuralVoice === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
           <button class="iconbtn" data-act="neural-test" aria-label="test">${icon('volume', { size: 18 })}</button></div></div>` : ''}
@@ -832,7 +830,6 @@ function onClick(e) {
     case 'tog-auto': S().cfg.autoSpeak = !S().cfg.autoSpeak; save(); return renderSettings();
     case 'tog-neural': S().cfg.ttsNeural = !S().cfg.ttsNeural; save(); return renderSettings();
     case 'tog-micgemini': S().cfg.micGemini = !S().cfg.micGemini; save(); return renderSettings();
-    case 'tog-livetab': S().cfg.liveTab = !S().cfg.liveTab; save(); if (!S().cfg.liveTab && view.mode === 'live') view.mode = 'chat'; return renderSettings();
     case 'voice-test': return speakSample(b.dataset.code);
     case 'neural-test': return speakTutor('こんにちは。Hello. Ciao, questa è la voce neurale.', activeProfile(), true);
     case 'clear-memory': if (confirm(sl('clearMemoryConfirm'))) { clearDiary(S().activeId); render(); } return;
