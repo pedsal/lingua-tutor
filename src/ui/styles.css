@@ -59,8 +59,9 @@ h1, h3 { letter-spacing: -.01em; }
   background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px;
   box-shadow: var(--shadow-sm); text-align: left; overflow: hidden;
 }
-.profilechip .pn { font-weight: 700; font-size: 14px; color: var(--text); white-space: nowrap; }
-.profilechip .pm { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.profilechip .pn { font-weight: 700; font-size: 14px; color: var(--text); white-space: nowrap; flex-shrink: 0; }
+.profilechip .pm { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.profilechip .pm-short { display: none; }
 .profilechip .sw { color: var(--muted); margin-left: auto; flex-shrink: 0; }
 .profilechip:active { transform: scale(.99); }
 .lbadge {
@@ -74,11 +75,17 @@ h1, h3 { letter-spacing: -.01em; }
 }
 .iconbtn:active { transform: scale(.93); }
 .ic { display: inline-block; vertical-align: -0.16em; flex-shrink: 0; }
-/* Schermi stretti: icone un po' più compatte per lasciare spazio al chip profilo. */
+/* Schermi stretti: icone compatte ed etichette brevi, così nulla viene tagliato. */
+@media (max-width: 480px) {
+  .profilechip .pm-long { display: none; }
+  .profilechip .pm-short { display: inline; }
+  .usagebar .u-long { display: none; }
+}
 @media (max-width: 400px) {
   .topbar.main { gap: 6px; padding-left: 10px; padding-right: 10px; }
   .topbar.main .iconbtn { width: 38px; height: 38px; border-radius: 11px; }
   .logo { width: 36px; height: 36px; border-radius: 11px; }
+  .profilechip { padding: 6px 8px; gap: 6px; }
 }
 
 /* ── Tab bar (icona + etichetta, ottimizzata mobile) ── */

@@ -63,6 +63,7 @@ const SL = {
   // Contatore token
   usageTitle: { it: 'Consumo token', en: 'Token usage', ja: 'トークン使用量' },
   usageTokens: { it: 'token', en: 'tokens', ja: 'トークン' },
+  levelIntroShort: { it: 'Intro', en: 'Intro', ja: '入門' },
   usageReq: { it: 'richieste', en: 'requests', ja: 'リクエスト' },
   usageTokensToday: { it: 'token oggi', en: 'tokens today', ja: '今日のトークン' },
   usageReqToday: { it: 'richieste oggi', en: 'requests today', ja: '今日のリクエスト' },
@@ -238,9 +239,11 @@ function usageBarHtml() {
   const hot = u.minuteTokens > 20000 || (q.max && q.left <= 3);
   return `<button class="usagebar ${hot ? 'hot' : ''}" data-act="usage-info" title="${sl('usageTitle')}">
       ${icon('spark', { size: 13 })}
-      <span><b>${fmtTok(u.tokens)}</b> ${sl('usageTokens')}</span>
-      <span class="sep">·</span><span>${reqTxt} ${sl('usageReq')}</span>
-      <span class="sep">·</span><span>${icon('refresh', { size: 12 })} ${fmtLeft(u.resetMs)}</span>
+      <span class="ui"><b>${fmtTok(u.tokens)}</b> ${sl('usageTokens')}</span>
+      <span class="sep">·</span>
+      <span class="ui">${reqTxt}<span class="u-long"> ${sl('usageReq')}</span></span>
+      <span class="sep">·</span>
+      <span class="ui">${icon('refresh', { size: 12 })} ${fmtLeft(u.resetMs)}</span>
     </button>`;
 }
 function paintUsageBar() {
@@ -360,12 +363,15 @@ const CHAT_MODES = ['chat', 'lesson', 'reading'];
 function renderMain() {
   const p = activeProfile();
   const tabsHtml = TABS.map((tb) => `<button class="tab ${view.mode === tb.mode ? 'on' : ''}" data-act="tab" data-mode="${tb.mode}"><span class="ti">${icon(tb.ic, { size: 22 })}</span><span class="tl">${tb.label()}</span></button>`).join('');
-  const chip = `${langBadge(p.target)}<span class="pn">${esc(p.name)}</span><span class="pm">${langName(p.target)} · ${levelLabel(p.level, p.target)}</span>${S().profiles.length > 1 ? icon('swap', { size: 15, cls: 'sw' }) : ''}`;
+  // Su schermi stretti mostriamo la versione breve (il badge già dice la lingua).
+  const lvlShort = p.level === 'intro' ? sl('levelIntroShort') : p.level;
+  const chip = `${langBadge(p.target)}<span class="pn">${esc(p.name)}</span>`
+    + `<span class="pm"><span class="pm-long">${langName(p.target)} · ${levelLabel(p.level, p.target)}</span><span class="pm-short">${esc(lvlShort)}</span></span>`
+    + `${S().profiles.length > 1 ? icon('swap', { size: 15, cls: 'sw' }) : ''}`;
   app().innerHTML =
     `<div class="topbar main">
        <span class="logo">${icon('logo', { size: 22 })}</span>
        <button class="profilechip" data-act="switch">${chip}</button>
-       <div class="spacer"></div>
        <button class="iconbtn" data-act="cycle-theme" title="${sl('themeToggle')}">${icon(isDark() ? 'sun' : 'moon')}</button>
        <button class="iconbtn" data-act="cycle-ui" title="lingua / language / 言語">${icon('globe')}</button>
        <button class="iconbtn" data-act="settings">${icon('settings')}</button>
