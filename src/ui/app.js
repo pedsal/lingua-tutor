@@ -281,8 +281,9 @@ function openProfileSheet() {
       <div class="sheet-h">${sl('sheetLevel')} · ${esc(langName(p.target))}</div>
       ${levels}
       ${othersHtml}
-      <div class="sheet-h"></div>
+      <div class="sheet-h">${t('profiles')}</div>
       <button class="sheet-item" data-act="sheet-edit">${icon('edit', { size: 16 })} <span>${t('editProfile')}</span></button>
+      <button class="sheet-item" data-act="sheet-new">${icon('plus', { size: 16 })} <span>${t('newProfile')}</span></button>
     </div>`;
   document.body.appendChild(el);
 }
@@ -1004,6 +1005,7 @@ function onClick(e) {
     case 'pick-level': return pickLevel(v);
     case 'sheet-profile': closeSheet(); S().activeId = b.dataset.id; save(); return render();
     case 'sheet-edit': { const p = activeProfile(); closeSheet(); draft = null; return go('onboarding', { editId: p ? p.id : null }); }
+    case 'sheet-new': closeSheet(); draft = null; return go('onboarding', { editId: null });
     case 'send': return doSend();
     case 'mic': return toggleMic(b);
     case 'chip': return doSendText(b.dataset.text);
