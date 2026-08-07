@@ -64,6 +64,9 @@ const SL = {
   usageTitle: { it: 'Consumo token', en: 'Token usage', ja: 'トークン使用量' },
   usageTokens: { it: 'token', en: 'tokens', ja: 'トークン' },
   levelIntroShort: { it: 'Intro', en: 'Intro', ja: '入門' },
+  sheetLevel: { it: 'Livello di padronanza', en: 'Proficiency level', ja: '習熟レベル' },
+  sheetLevelSet: { it: 'Livello impostato:', en: 'Level set:', ja: 'レベル設定：' },
+  sheetLiveRestart: { it: 'riavvia la conversazione per applicarlo', en: 'restart the conversation to apply it', ja: '適用するには会話を再開してください' },
   usageReq: { it: 'richieste', en: 'requests', ja: 'リクエスト' },
   usageTokensToday: { it: 'token oggi', en: 'tokens today', ja: '今日のトークン' },
   usageReqToday: { it: 'richieste oggi', en: 'requests today', ja: '今日のリクエスト' },
@@ -257,6 +260,41 @@ function startUsageTicker() {
   _usageTick = setInterval(() => { if (view.route === 'main') paintUsageBar(); }, 3000);
 }
 
+// ── Pannello rapido dal chip del profilo: livello, profili, modifica ──
+// Vive fuori dal render dell'app (come il toast) per non ri-renderizzare il
+// pannello attivo (che potrebbe riavviare una modalità).
+function closeSheet() { const el = document.getElementById('sheet'); if (el) el.remove(); }
+function openProfileSheet() {
+  closeSheet();
+  const p = activeProfile();
+  if (!p) return;
+  const levels = levelsFor(p.target).map((l) => `<button class="sheet-item ${p.level === l.id ? 'on' : ''}" data-act="pick-level" data-v="${l.id}">
+      <span>${esc(l[uiLang()] || l.id)}</span>${p.level === l.id ? icon('check', { size: 17 }) : ''}</button>`).join('');
+  const others = S().profiles.filter((x) => x.id !== p.id);
+  const othersHtml = others.length ? `<div class="sheet-h">${t('switchProfile')}</div>` + others.map((x) => `<button class="sheet-item" data-act="sheet-profile" data-id="${x.id}">
+      <span>${langBadge(x.target)} ${esc(x.name)} · ${esc(levelLabel(x.level, x.target))}</span></button>`).join('') : '';
+  const el = document.createElement('div');
+  el.id = 'sheet'; el.className = 'sheet-wrap';
+  el.innerHTML = `<div class="sheet-bd" data-act="sheet-close"></div>
+    <div class="sheet">
+      <div class="sheet-drag"></div>
+      <div class="sheet-h">${sl('sheetLevel')} · ${esc(langName(p.target))}</div>
+      ${levels}
+      ${othersHtml}
+      <div class="sheet-h"></div>
+      <button class="sheet-item" data-act="sheet-edit">${icon('edit', { size: 16 })} <span>${t('editProfile')}</span></button>
+    </div>`;
+  document.body.appendChild(el);
+}
+function pickLevel(id) {
+  const p = activeProfile();
+  if (!p || p.level === id) { closeSheet(); return; }
+  updateProfile(p.id, { level: id });
+  closeSheet();
+  renderMain();
+  toast(`${sl('sheetLevelSet')} ${levelLabel(id, p.target)}${live ? ' · ' + sl('sheetLiveRestart') : ''}`);
+}
+
 let _toastT = null;
 function toast(msg) {
   let el = document.getElementById('toast');
@@ -367,7 +405,7 @@ function renderMain() {
   const lvlShort = p.level === 'intro' ? sl('levelIntroShort') : p.level;
   const chip = `${langBadge(p.target)}<span class="pn">${esc(p.name)}</span>`
     + `<span class="pm"><span class="pm-long">${langName(p.target)} · ${levelLabel(p.level, p.target)}</span><span class="pm-short">${esc(lvlShort)}</span></span>`
-    + `${S().profiles.length > 1 ? icon('swap', { size: 15, cls: 'sw' }) : ''}`;
+    + icon('chevron', { size: 15, cls: 'sw' });
   app().innerHTML =
     `<div class="topbar main">
        <span class="logo">${icon('logo', { size: 22 })}</span>
@@ -961,7 +999,11 @@ function onClick(e) {
     case 'tog-usage': S().cfg.showUsage = !S().cfg.showUsage; save(); return renderSettings();
     case 'reset-usage': if (confirm(sl('usageResetConfirm'))) { resetUsage(); renderSettings(); } return;
     case 'tab': { const m = b.dataset.mode; if (m === view.mode) return; diarizeCurrentIfChat(); view.mode = m; cancelRecording(); liveStop(); ttsStop(); return renderMain(); }
-    case 'switch': return cycleProfile();
+    case 'switch': return openProfileSheet();
+    case 'sheet-close': return closeSheet();
+    case 'pick-level': return pickLevel(v);
+    case 'sheet-profile': closeSheet(); S().activeId = b.dataset.id; save(); return render();
+    case 'sheet-edit': { const p = activeProfile(); closeSheet(); draft = null; return go('onboarding', { editId: p ? p.id : null }); }
     case 'send': return doSend();
     case 'mic': return toggleMic(b);
     case 'chip': return doSendText(b.dataset.text);
@@ -1034,11 +1076,6 @@ function delProfile() {
   if (S().profiles.length <= 1) return;
   if (!confirm(t('delete') + '?')) return;
   removeProfile(view.editId); draft = null; view.editId = null; go('settings');
-}
-function cycleProfile() {
-  const ps = S().profiles; if (ps.length < 2) return;
-  const i = ps.findIndex((p) => p.id === S().activeId);
-  S().activeId = ps[(i + 1) % ps.length].id; save(); render();
 }
 async function newLesson() { return restartMode('lesson'); }
 // Ricomincia una modalità: prima memorizza (diario) la conversazione uscente,
